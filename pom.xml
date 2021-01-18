@@ -6,6 +6,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>spring-configuration</module>
+        <module>springboot-autoconfig</module>
     </modules>
 
     <parent>

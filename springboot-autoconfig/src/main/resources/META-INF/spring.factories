@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+cn.x5456.autoconfig.study.customize.StarterAutoConfiguration
