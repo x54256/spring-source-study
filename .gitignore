@@ -28,3 +28,6 @@ target/
 
 ## ignoring data folder
 data/
+
+## other file
+*.db
