@@ -1,0 +1,5 @@
+name: zhangsan
+list: topic1,topic2,topic3
+maps: "{key1: 'value1', key2: 'value2'}"
+
+abc: name
