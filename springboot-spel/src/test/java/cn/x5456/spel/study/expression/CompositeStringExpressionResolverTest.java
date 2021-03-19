@@ -8,6 +8,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 /**
+ * 单元测试的重要性，有的时候写着写着你自己就不知道在写啥了，单元测试可以帮你纠错
+ *
  * @author yujx
  * @date 2021/03/18 11:30
  */
@@ -60,7 +62,7 @@ public class CompositeStringExpressionResolverTest {
         Assert.assertEquals(resolver.evaluate("@{phone}").recreate(), "456");
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test(expected = ResolveExpressionTraceException.class)
     public void testError() {
         resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}").recreate();
     }

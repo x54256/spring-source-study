@@ -8,8 +8,8 @@
 解析过程（包括错误）
 ```
 
-2. Enum 工具类
-3. re、like 的实现。匹配到多个怎么办？ reportMulti（模仿 spring）
+2. ~~Enum 工具类~~
+3. re、like 的实现。匹配到多个怎么办？ reportMulti（模仿 springboot）
 4. ~~别名~~
 
 ![](https://tva1.sinaimg.cn/large/008eGmZEly1gooyk6uzakj31xa0oeq8q.jpg)

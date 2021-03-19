@@ -56,8 +56,8 @@ public class ResolveExpressionTrace implements Serializable {
         return result;
     }
 
-    public RuntimeException getException() {
-        return new RuntimeException(errorMessage, exception);
+    public ResolveExpressionTraceException getException() {
+        return new ResolveExpressionTraceException(errorMessage, exception);
     }
 
     public boolean hasException() {
