@@ -11,7 +11,7 @@ public interface ImportExpressionResolverDefinitionRegistrar {
     /**
      * 用于子类实现，向 CustomizeExpressionResolverRegistry 注册自定义表达式解析器
      *
-     * @param context 自定义表达式上下文（注册中心）
+     * @param registry 自定义表达式的注册中心
      */
-    void registerExpressionResolverDefinitions(CustomizeExpressionResolverContext context);
+    void registerExpressionResolverDefinitions(ExpressionResolverDefinitionRegistry registry);
 }

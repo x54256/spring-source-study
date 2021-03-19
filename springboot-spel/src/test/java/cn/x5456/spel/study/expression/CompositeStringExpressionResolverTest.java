@@ -38,4 +38,10 @@ public class CompositeStringExpressionResolverTest {
     public void testExpression() {
         System.out.println(resolver.testExpression("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx"));
     }
+
+    @Test
+    public void testAlias() {
+        String evaluate = resolver.evaluate("#{@{curr}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
+        System.out.println("evaluate = " + evaluate);
+    }
 }

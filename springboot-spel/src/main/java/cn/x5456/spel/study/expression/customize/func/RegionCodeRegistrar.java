@@ -1,7 +1,7 @@
 package cn.x5456.spel.study.expression.customize.func;
 
-import cn.x5456.spel.study.expression.customize.CustomizeExpressionResolverContext;
 import cn.x5456.spel.study.expression.customize.ExpressionResolverDefinition;
+import cn.x5456.spel.study.expression.customize.ExpressionResolverDefinitionRegistry;
 import cn.x5456.spel.study.expression.customize.ImportExpressionResolverDefinitionRegistrar;
 import org.springframework.stereotype.Component;
 
@@ -15,33 +15,34 @@ public class RegionCodeRegistrar implements ImportExpressionResolverDefinitionRe
     /**
      * 用于子类实现，向 CustomizeExpressionResolverRegistry 注册自定义表达式解析器
      *
-     * @param context 自定义表达式上下文（注册中心）
+     * @param registry 自定义表达式的注册中心
      */
     @Override
-    public void registerExpressionResolverDefinitions(CustomizeExpressionResolverContext context) {
+    public void registerExpressionResolverDefinitions(ExpressionResolverDefinitionRegistry registry) {
         // 注册 计算当前行政区划的规则
         ExpressionResolverDefinition currRegionCodeResolver = new ExpressionResolverDefinition();
         currRegionCodeResolver.setExpressionResolver(this::currRegionCode);
         currRegionCodeResolver.setDefaultValue("330512000000");
-        context.registerExpressionResolverDefinition("currRegionCode", currRegionCodeResolver);
+        currRegionCodeResolver.addAlias("curr");
+        registry.registerExpressionResolverDefinition("currRegionCode", currRegionCodeResolver);
 
         // 注册 计算当前行政区划（6 位）的规则
         ExpressionResolverDefinition currRegionCode6Resolver = new ExpressionResolverDefinition();
         currRegionCode6Resolver.setExpressionResolver(this::currRegionCode_6);
         currRegionCode6Resolver.setDefaultValue("330512");
-        context.registerExpressionResolverDefinition("currRegionCode_6", currRegionCode6Resolver);
+        registry.registerExpressionResolverDefinition("currRegionCode_6", currRegionCode6Resolver);
 
         // 注册 计算上位行政区划的规则
         ExpressionResolverDefinition upperRegionCodeResolver = new ExpressionResolverDefinition();
         upperRegionCodeResolver.setExpressionResolver(this::upperRegionCode);
         upperRegionCodeResolver.setDefaultValue("330500000000");
-        context.registerExpressionResolverDefinition("upperRegionCode", upperRegionCodeResolver);
+        registry.registerExpressionResolverDefinition("upperRegionCode", upperRegionCodeResolver);
 
         // 注册 计算上位行政区划（6 位）的规则
         ExpressionResolverDefinition upperRegionCode6Resolver = new ExpressionResolverDefinition();
         upperRegionCode6Resolver.setExpressionResolver(this::upperRegionCode_6);
         upperRegionCode6Resolver.setDefaultValue("330500");
-        context.registerExpressionResolverDefinition("upperRegionCode_6", upperRegionCode6Resolver);
+        registry.registerExpressionResolverDefinition("upperRegionCode_6", upperRegionCode6Resolver);
     }
 
     public String currRegionCode() {
