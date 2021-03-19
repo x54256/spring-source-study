@@ -22,18 +22,18 @@ public class PropertiesExpressionResolver implements StringExpressionResolver {
     private ConfigurableBeanFactory beanFactory;
 
     /**
-     * @param expression 表达式
+     * @param placeholder 表达式
      * @return 替换表达式之后的结果
      */
     @Override
-    public String evaluate(String expression) {
-        log.info("输入的表达式为：【{}】", expression);
-        String value = expression;
+    public String evaluate(String placeholder) {
+        log.info("输入的表达式为：【{}】", placeholder);
+        String value = placeholder;
         try {
-            value = beanFactory.resolveEmbeddedValue(expression);
+            value = beanFactory.resolveEmbeddedValue(placeholder);
         } catch (IllegalArgumentException e) {
             if (e.getMessage().contains("Could not resolve placeholder")) {
-                log.warn("表达式【{}】未解析成功，报错内容为：【{}】，如合理请忽略~", expression, e.getMessage());
+                log.warn("表达式【{}】未解析成功，报错内容为：【{}】，如合理请忽略~", placeholder, e.getMessage());
             } else {
                 throw e;
             }

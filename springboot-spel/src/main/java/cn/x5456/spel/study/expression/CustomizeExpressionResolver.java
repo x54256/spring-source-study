@@ -1,6 +1,8 @@
 package cn.x5456.spel.study.expression;
 
 import cn.x5456.spel.study.expression.customize.CustomizeExpressionResolverContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CustomizeExpressionResolver extends AbstractExpressionResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(CustomizeExpressionResolver.class);
 
     private static final String CUSTOMIZE_EXPRESSION_PREFIX = "@{";
 
@@ -39,6 +43,20 @@ public class CustomizeExpressionResolver extends AbstractExpressionResolver {
     @Override
     protected String resolvePlaceholder(String placeholder) {
         return expressionResolverContext.resolvePlaceholder(placeholder);
+    }
+
+    /**
+     * 此为测试时使用
+     *
+     * @param placeholder 表达式
+     * @return 替换表达式之后的结果
+     */
+    @Override
+    public String testExpression(String placeholder) {
+        log.info("输入的表达式为：【{}】", placeholder);
+        String value = super.parseStringValue(placeholder, expressionResolverContext::defaultValue);
+        log.info("解析后的结果为：【{}】", value);
+        return value;
     }
 
     /**

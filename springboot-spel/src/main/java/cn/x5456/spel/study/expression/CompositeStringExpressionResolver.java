@@ -36,4 +36,13 @@ public class CompositeStringExpressionResolver {
         }
         return value;
     }
+
+    // TODO: 2021/3/18 修改返回值
+    public String testExpression(String expression) {
+        String value = expression;
+        for (StringExpressionResolver resolver : delegates) {
+            value = resolver.testExpression(value);
+        }
+        return value;
+    }
 }

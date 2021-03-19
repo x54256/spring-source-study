@@ -53,4 +53,12 @@ public class CustomizeExpressionResolverContext {
         return value;
     }
 
+    public String defaultValue(String placeholder) {
+        String value = placeholder;
+        if (customizeExpressionMap.containsKey(placeholder)) {
+            ExpressionResolverDefinition expressionResolverDefinition = customizeExpressionMap.get(placeholder);
+            value = expressionResolverDefinition.getDefaultValue();
+        }
+        return value;
+    }
 }

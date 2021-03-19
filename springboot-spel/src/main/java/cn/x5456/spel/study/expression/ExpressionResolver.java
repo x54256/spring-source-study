@@ -11,8 +11,19 @@ import org.springframework.core.Ordered;
 public interface ExpressionResolver<T> extends Ordered {
 
     /**
-     * @param expression 表达式
+     * @param placeholder 表达式
      * @return 替换表达式之后的结果
      */
-    T evaluate(String expression);
+    T evaluate(String placeholder);
+
+
+    /**
+     * 此为测试时使用
+     *
+     * @param placeholder 表达式
+     * @return 替换表达式之后的结果
+     */
+    default T testExpression(String placeholder){
+        return this.evaluate(placeholder);
+    }
 }

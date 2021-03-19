@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * 解析表达式的抽象父类
@@ -40,13 +41,13 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
     }
 
     /**
-     * @param expression 表达式
+     * @param placeholder 表达式
      * @return 替换表达式之后的结果
      */
     @Override
-    public String evaluate(String expression) {
-        log.info("输入的表达式为：【{}】", expression);
-        String value = this.parseStringValue(expression);
+    public String evaluate(String placeholder) {
+        log.info("输入的表达式为：【{}】", placeholder);
+        String value = this.parseStringValue(placeholder, this::resolvePlaceholder);
         log.info("解析后的结果为：【{}】", value);
         return value;
     }
@@ -56,7 +57,7 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
      * <p>
      * copy {@link PropertyPlaceholderHelper#parseStringValue}
      */
-    private String parseStringValue(String expression) {
+    protected String parseStringValue(String expression, Function<String, String> resolvePlaceholderFunction) {
         int startIndex = expression.indexOf(this.placeholderPrefix);
         if (startIndex == -1) {
             return expression;
@@ -73,16 +74,16 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
             String placeholder = result.substring(startIndex + this.placeholderPrefix.length(), endIndex);
 
             // 递归调用，解析占位符键中包含的占位符。例如：@{@{xxx}}
-            placeholder = parseStringValue(placeholder);
+            placeholder = parseStringValue(placeholder, resolvePlaceholderFunction);
             // 解析表达式，获取值
-            String propVal = this.resolvePlaceholder(placeholder);
+            String propVal = resolvePlaceholderFunction.apply(placeholder);
             if (propVal == null && valueSeparator != null) {
                 // 如果表达式是 @{abc:123} 这种格式的则获取 @{abc} 的值，否则取默认值 123
                 int separatorIndex = placeholder.indexOf(this.valueSeparator);
                 if (separatorIndex != -1) {
                     String actualPlaceholder = placeholder.substring(0, separatorIndex);
                     String defaultValue = placeholder.substring(separatorIndex + this.valueSeparator.length());
-                    propVal = this.resolvePlaceholder(actualPlaceholder);
+                    propVal = resolvePlaceholderFunction.apply(actualPlaceholder);
                     if (propVal == null) {
                         propVal = defaultValue;
                     }
@@ -90,7 +91,7 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
             }
             if (propVal != null) {
                 // 递归调用，解析先前解析的占位符值中包含的占位符。例如 @{abc} 解析占位符之后变成 @{123}
-                propVal = parseStringValue(propVal);
+                propVal = parseStringValue(propVal, resolvePlaceholderFunction);
                 result.replace(startIndex, endIndex + this.placeholderSuffix.length(), propVal);
                 log.trace("已解析完成的占位符【{}】，值为【{}】", placeholder, propVal);
 

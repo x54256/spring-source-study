@@ -25,12 +25,17 @@ public class CompositeStringExpressionResolverTest {
 
     @Test
     public void evaluate() {
-        String evaluate = resolver.evaluate("#{@{currRegionCode_6}.substring(0, 4).concat(00)}${JSYDGZQ:JSYDGZQ}.shx");
+        String evaluate = resolver.evaluate("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
         System.out.println("evaluate = " + evaluate);
     }
 
     @Test
     public void test() {
         System.out.println(spelExpressionResolver.evaluate("#{#{1+1}+1}"));
+    }
+
+    @Test
+    public void testExpression() {
+        System.out.println(resolver.testExpression("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx"));
     }
 }

@@ -45,7 +45,7 @@ public class RegionCodeRegistrar implements ImportExpressionResolverDefinitionRe
     }
 
     public String currRegionCode() {
-        return "330512000000";
+        return "220512000000";
     }
 
     public String currRegionCode_6() {
