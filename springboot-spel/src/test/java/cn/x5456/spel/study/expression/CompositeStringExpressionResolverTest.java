@@ -30,44 +30,44 @@ public class CompositeStringExpressionResolverTest {
     @Test
     public void evaluate() {
         ResolveExpressionTrace evaluate = resolver.evaluate("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
-        System.out.println("evaluate = " + evaluate);
+        Assert.assertEquals(evaluate.recreate(), "220500JSYDGZQ.shx");
     }
 
     @Test
     public void test() {
-        System.out.println(spelExpressionResolver.evaluate("#{#{1+1}+1}"));
+        Assert.assertEquals(spelExpressionResolver.evaluate("#{#{1+1}+1}"), "3");
     }
 
     @Test
     public void testExpression() {
-        System.out.println(resolver.testExpression("#{'@{currRegionCode}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx"));
+        ResolveExpressionTrace evaluate = resolver.testExpression("#{'@{currRegionCode}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
+        Assert.assertEquals(evaluate.recreate(), "330500JSYDGZQ.shx");
     }
 
     @Test
     public void testAlias() {
         ResolveExpressionTrace evaluate = resolver.evaluate("#{'@{curr}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
-        System.out.println("evaluate = " + evaluate);
+        Assert.assertEquals(evaluate.recreate(), "220500JSYDGZQ.shx");
     }
 
     @Test
     public void testBlueberryExpression() {
-        System.out.println(resolver.testExpression("@{phoneNum}"));
+        Assert.assertEquals(resolver.testExpression("@{phoneNum}").recreate(), "123");
     }
 
     @Test
     public void testBlueberryAlias() {
-        ResolveExpressionTrace evaluate = resolver.evaluate("@{phone}");
-        System.out.println("evaluate = " + evaluate);
+        Assert.assertEquals(resolver.evaluate("@{phone}").recreate(), "456");
     }
 
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testError() {
-        System.out.println(resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}"));
+        resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}").recreate();
     }
 
     @Test
     public void testProperties() {
-        System.out.println(propertiesExpressionResolver.evaluate("${ksdjanksajcna}"));
+        Assert.assertEquals(propertiesExpressionResolver.evaluate("${ksdjanksajcna}"), "${ksdjanksajcna}");
     }
 
     @Test

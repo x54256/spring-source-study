@@ -12,9 +12,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ExpressionResolverConfig {
 
-    @Blueberry(defaultValue = "17521340109", alias = "phone")
+    @Blueberry(defaultValue = "123", alias = "phone")
     public String phoneNum() {
-        return "15842500563";
+        return "456";
     }
 
     // 错误示范

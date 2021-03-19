@@ -6,7 +6,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * 【废弃这种方案】模仿 {@link org.springframework.web.servlet.config.annotation.WebMvcConfigurerComposite}
@@ -28,15 +28,15 @@ public class CompositeStringExpressionResolver {
 
     /**
      * @param expression 表达式
-     * @param function
+     * @param biFunction 计算表达式的方法
      * @return 替换表达式之后的结果
      */
-    public ResolveExpressionTrace template(String expression, Function<StringExpressionResolver, String> function) {
+    public ResolveExpressionTrace template(String expression, BiFunction<StringExpressionResolver, String, String> biFunction) {
         ResolveExpressionTrace trace = new ResolveExpressionTrace(expression);
-        String value;
+        String value = expression;
         try {
             for (StringExpressionResolver resolver : delegates) {
-                value = function.apply(resolver);
+                value = biFunction.apply(resolver, value);
                 trace.addProcess(value);
             }
         } catch (Exception e) {
@@ -45,12 +45,11 @@ public class CompositeStringExpressionResolver {
         return trace;
     }
 
-    // TODO: 2021/3/18 修改返回值
     public ResolveExpressionTrace testExpression(String expression) {
-        return this.template(expression, resolver -> resolver.testExpression(expression));
+        return this.template(expression, ExpressionResolver::testExpression);
     }
 
     public ResolveExpressionTrace evaluate(String expression) {
-        return this.template(expression, resolver -> resolver.evaluate(expression));
+        return this.template(expression, ExpressionResolver::evaluate);
     }
 }

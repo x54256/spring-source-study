@@ -31,7 +31,7 @@ public class ResolveExpressionTrace implements Serializable {
     private String errorMessage;
 
     // 异常信息
-    private Exception e;
+    private Exception exception;
 
     public ResolveExpressionTrace(String placeholder) {
         this.placeholder = placeholder;
@@ -44,11 +44,12 @@ public class ResolveExpressionTrace implements Serializable {
         this.processes.add(StrUtil.format("第「{}」步解析后的结果为：「{}」", stepNum.incrementAndGet(), value));
     }
 
-    public void recordErrorMsg(Exception e) {
+    public void recordErrorMsg(Exception exception) {
         this.hasException = true;
-        String errorMessage = StrUtil.format("解析表达式「{}」时出现错误，错误内容为「{}」！", placeholder, e.getMessage());
+        String errorMessage = StrUtil.format("解析表达式「{}」时出现错误，错误内容为「{}」！", placeholder, exception.getMessage());
         this.processes.add(errorMessage);
         this.errorMessage = errorMessage;
+        this.exception = exception;
     }
 
     public String getValue() {
@@ -56,7 +57,7 @@ public class ResolveExpressionTrace implements Serializable {
     }
 
     public RuntimeException getException() {
-        return new RuntimeException(errorMessage, e);
+        return new RuntimeException(errorMessage, exception);
     }
 
     public boolean hasException() {
