@@ -19,7 +19,9 @@ import java.util.Iterator;
 
 /**
  * 由于 DI List 的特殊性（只会把容器中有的注入进去，不会查找类型获取他们），所以如果在这个时机获取到 ExpressionResolverDefinitionRegistry
- * 会导致 {@link CustomizeExpressionResolverContext#init(java.util.List)} 不会进行注入。故废弃该类，请使用{@link }
+ * 会导致 {@link CustomizeExpressionResolverContext#init(java.util.List)} 不会进行注入。故废弃该类
+ *
+ * @deprecated {@link ExpressionResolverDefinitionReaderV2}
  *
  * @author yujx
  * @date 2021/03/19 10:28

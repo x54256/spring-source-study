@@ -32,34 +32,34 @@ public class CompositeStringExpressionResolverTest {
     @Test
     public void evaluate() {
         ResolveExpressionTrace evaluate = resolver.evaluate("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
-        Assert.assertEquals(evaluate.recreate(), "220500JSYDGZQ.shx");
+        Assert.assertEquals("220500JSYDGZQ.shx", evaluate.recreate());
     }
 
     @Test
     public void test() {
-        Assert.assertEquals(spelExpressionResolver.evaluate("#{#{1+1}+1}"), "3");
+        Assert.assertEquals("3", spelExpressionResolver.evaluate("#{#{1+1}+1}"));
     }
 
     @Test
     public void testExpression() {
         ResolveExpressionTrace evaluate = resolver.testExpression("#{'@{currRegionCode}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
-        Assert.assertEquals(evaluate.recreate(), "330500JSYDGZQ.shx");
+        Assert.assertEquals("330500JSYDGZQ.shx", evaluate.recreate());
     }
 
     @Test
     public void testAlias() {
         ResolveExpressionTrace evaluate = resolver.evaluate("#{'@{curr}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
-        Assert.assertEquals(evaluate.recreate(), "220500JSYDGZQ.shx");
+        Assert.assertEquals("220500JSYDGZQ.shx", evaluate.recreate());
     }
 
     @Test
     public void testBlueberryExpression() {
-        Assert.assertEquals(resolver.testExpression("@{phoneNum}").recreate(), "123");
+        Assert.assertEquals("123", resolver.testExpression("@{phoneNum}").recreate());
     }
 
     @Test
     public void testBlueberryAlias() {
-        Assert.assertEquals(resolver.evaluate("@{phone}").recreate(), "456");
+        Assert.assertEquals("456", resolver.evaluate("@{phone}").recreate());
     }
 
     @Test(expected = ResolveExpressionTraceException.class)
@@ -69,11 +69,11 @@ public class CompositeStringExpressionResolverTest {
 
     @Test
     public void testProperties() {
-        Assert.assertEquals(propertiesExpressionResolver.evaluate("${ksdjanksajcna}"), "${ksdjanksajcna}");
+        Assert.assertEquals("${ksdjanksajcna}", propertiesExpressionResolver.evaluate("${ksdjanksajcna}"));
     }
 
     @Test
     public void testCustomize() {
-        Assert.assertEquals(customizeExpressionResolver.evaluate("@{ksdjanksajcna}"), "@{ksdjanksajcna}");
+        Assert.assertEquals("@{ksdjanksajcna}", customizeExpressionResolver.evaluate("@{ksdjanksajcna}"));
     }
 }

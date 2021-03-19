@@ -31,11 +31,10 @@ public class ExpressionResolverDefinitionReaderV2 implements ApplicationListener
         String[] beanNames = applicationContext.getBeanNamesForAnnotation(Configuration.class);
         for (String name : beanNames) {
             Class<?> clazz = applicationContext.getType(name);
-            if (clazz != null) {
-                if (Arrays.stream(clazz.getMethods()).anyMatch(method -> method.isAnnotationPresent(Blueberry.class))) {
-                    // 处理 @Blueberry 注解
-                    this.processBlueberry(applicationContext.getBean(name), clazz, applicationContext);
-                }
+            if (clazz != null &&
+                    Arrays.stream(clazz.getMethods()).anyMatch(method -> method.isAnnotationPresent(Blueberry.class))) {
+                // 处理 @Blueberry 注解
+                this.processBlueberry(applicationContext.getBean(name), clazz, applicationContext);
             }
         }
     }

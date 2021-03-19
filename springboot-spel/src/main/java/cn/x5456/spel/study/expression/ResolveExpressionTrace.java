@@ -46,9 +46,9 @@ public class ResolveExpressionTrace implements Serializable {
 
     public void recordErrorMsg(Exception exception) {
         this.hasException = true;
-        String errorMessage = StrUtil.format("解析表达式「{}」时出现错误，错误内容为「{}」！", placeholder, exception.getMessage());
-        this.processes.add(errorMessage);
-        this.errorMessage = errorMessage;
+        String msg = StrUtil.format("解析表达式「{}」时出现错误，错误内容为「{}」！", placeholder, exception.getMessage());
+        this.processes.add(msg);
+        this.errorMessage = msg;
         this.exception = exception;
     }
 
@@ -80,6 +80,6 @@ public class ResolveExpressionTrace implements Serializable {
 
     @Override
     public String toString() {
-        return this.recreate().toString();
+        return this.recreate();
     }
 }

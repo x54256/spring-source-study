@@ -16,11 +16,8 @@ public class ExpressionResolverDefinition {
     // 方法的默认值，用于测试的时候
     private String defaultValue;
 
-    // TODO: 2021/3/18 看看 bd 的别名咋做的
+    // 别名列表
     private List<String> aliasList = new ArrayList<>();
-
-    public ExpressionResolverDefinition() {
-    }
 
     public Supplier<String> getExpressionResolver() {
         return expressionResolver;
