@@ -3,6 +3,7 @@ package cn.x5456.spel.study.expression.customize.annotation;
 import cn.hutool.core.annotation.AnnotationUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.ReflectUtil;
+import cn.x5456.spel.study.expression.customize.CustomizeExpressionResolverContext;
 import cn.x5456.spel.study.expression.customize.ExpressionResolverDefinition;
 import cn.x5456.spel.study.expression.customize.ExpressionResolverDefinitionRegistry;
 import org.slf4j.Logger;
@@ -11,17 +12,20 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Iterator;
 
 /**
+ * 由于 DI List 的特殊性（只会把容器中有的注入进去，不会查找类型获取他们），所以如果在这个时机获取到 ExpressionResolverDefinitionRegistry
+ * 会导致 {@link CustomizeExpressionResolverContext#init(java.util.List)} 不会进行注入。故废弃该类，请使用{@link }
+ *
  * @author yujx
  * @date 2021/03/19 10:28
  */
-@Component
+//@Component
+@Deprecated
 public class ExpressionResolverDefinitionReader implements BeanFactoryPostProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(ExpressionResolverDefinitionReader.class);
@@ -80,14 +84,13 @@ public class ExpressionResolverDefinitionReader implements BeanFactoryPostProces
                     // 注册表达式解析器
                     registry.registerExpressionResolverDefinition(name, resolverDefinition);
                 } else {
-                    log.error("类{}上的方法{}格式不符合规范，已被忽略！", clazz.getName(), method.getName());
+                    log.error("类「{}」上的方法「{}」格式不符合规范，已被忽略！", clazz.getName(), method.getName());
                 }
             }
         }
     }
 
     private boolean check(Method method) {
-        // TODO: 2021/3/19  
         return method.getReturnType().equals(String.class) &&
                 method.getParameterCount() == 0;
     }
