@@ -35,7 +35,6 @@ public class CustomizeExpressionResolver extends AbstractExpressionResolver {
     /**
      * 解析表达式的值
      */
-    // TODO: 2021/3/17 在每一个自定义解析@{}的方法中再加一个方法，提供一个默认值，当实施添加表达式的时候要对表达式进行校验
     @Override
     protected String resolvePlaceholder(String placeholder) {
         return expressionResolverContext.resolvePlaceholder(placeholder);

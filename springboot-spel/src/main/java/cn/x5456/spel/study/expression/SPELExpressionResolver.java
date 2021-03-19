@@ -1,11 +1,9 @@
 package cn.x5456.spel.study.expression;
 
 import cn.hutool.core.util.StrUtil;
-import com.google.common.collect.ImmutableList;
+import cn.x5456.spel.study.expression.constants.DefaultConstant;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 /**
  * 【适配器模式】
@@ -23,13 +21,6 @@ public class SPELExpressionResolver extends AbstractExpressionResolver {
 
     private final SpelExpressionParser parser = new SpelExpressionParser();
 
-    private static final List<Class<?>> CAN_TOSTRING_CLASS_LIST = ImmutableList.of(
-            Number.class,
-            CharSequence.class,
-            Boolean.class,
-            Character.class
-    );
-
     public SPELExpressionResolver() {
         super.setPlaceholderPrefix(CUSTOMIZE_EXPRESSION_PREFIX);
         super.setPlaceholderSuffix(CUSTOMIZE_EXPRESSION_SUFFIX);
@@ -42,7 +33,7 @@ public class SPELExpressionResolver extends AbstractExpressionResolver {
     protected String resolvePlaceholder(String placeholder) {
         Object value = parser.parseExpression(placeholder).getValue();
         if (value != null &&
-                CAN_TOSTRING_CLASS_LIST.stream().anyMatch(x -> x.isAssignableFrom(value.getClass()))) {
+                DefaultConstant.CAN_TOSTRING_CLASS_LIST.stream().anyMatch(x -> x.isAssignableFrom(value.getClass()))) {
             return value.toString();
         }
         throw new ResolveExpressionException(

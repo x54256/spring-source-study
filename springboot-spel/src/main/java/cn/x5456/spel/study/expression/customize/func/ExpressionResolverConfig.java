@@ -17,8 +17,19 @@ public class ExpressionResolverConfig {
         return "456";
     }
 
-    // 错误示范
+    @Blueberry
+    public String addr(ExpressionResolverConfig config) {
+        return "张江";
+    }
+
+    // 错误示范，返回值类型不正确
     @Blueberry
     public void func() {
+    }
+
+    // 错误示范 2，方法参数从 Spring 容器中获取不到
+    @Blueberry
+    public String func2(String s) {
+        return "func2";
     }
 }

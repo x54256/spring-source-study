@@ -17,13 +17,6 @@
     </properties>
 
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/com.github.paulcwarren/ginkgo4j -->
-        <dependency>
-            <groupId>com.github.paulcwarren</groupId>
-            <artifactId>ginkgo4j</artifactId>
-            <version>1.0.13</version>
-<!--            <scope>test</scope>-->
-        </dependency>
     </dependencies>
 
 </project>

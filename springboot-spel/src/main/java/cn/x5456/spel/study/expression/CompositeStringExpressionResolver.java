@@ -26,6 +26,14 @@ public class CompositeStringExpressionResolver {
         }
     }
 
+    public ResolveExpressionTrace testExpression(String expression) {
+        return this.template(expression, ExpressionResolver::testExpression);
+    }
+
+    public ResolveExpressionTrace evaluate(String expression) {
+        return this.template(expression, ExpressionResolver::evaluate);
+    }
+
     /**
      * @param expression 表达式
      * @param biFunction 计算表达式的方法
@@ -43,13 +51,5 @@ public class CompositeStringExpressionResolver {
             trace.recordErrorMsg(e);
         }
         return trace;
-    }
-
-    public ResolveExpressionTrace testExpression(String expression) {
-        return this.template(expression, ExpressionResolver::testExpression);
-    }
-
-    public ResolveExpressionTrace evaluate(String expression) {
-        return this.template(expression, ExpressionResolver::evaluate);
     }
 }
