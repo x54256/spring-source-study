@@ -45,4 +45,8 @@ public class ExpressionResolverDefinition {
     public void addAlias(String alias) {
         this.aliasList.add(alias);
     }
+
+    public void addAlias(List<String> alias) {
+        this.aliasList.addAll(alias);
+    }
 }

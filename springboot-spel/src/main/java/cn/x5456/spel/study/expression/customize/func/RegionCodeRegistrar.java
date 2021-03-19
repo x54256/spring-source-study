@@ -6,6 +6,8 @@ import cn.x5456.spel.study.expression.customize.ImportExpressionResolverDefiniti
 import org.springframework.stereotype.Component;
 
 /**
+ * 方式一：通过 ImportExpressionResolverDefinitionRegistrar 向 ExpressionResolverDefinitionRegistry 中注册
+ *
  * @author yujx
  * @date 2021/03/18 10:32
  */

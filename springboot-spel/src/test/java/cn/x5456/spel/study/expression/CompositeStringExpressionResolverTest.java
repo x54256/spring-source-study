@@ -44,4 +44,15 @@ public class CompositeStringExpressionResolverTest {
         String evaluate = resolver.evaluate("#{@{curr}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
         System.out.println("evaluate = " + evaluate);
     }
+
+    @Test
+    public void testBlueberryExpression() {
+        System.out.println(resolver.testExpression("@{phoneNum}"));
+    }
+
+    @Test
+    public void testBlueberryAlias() {
+        String evaluate = resolver.evaluate("@{phone}");
+        System.out.println("evaluate = " + evaluate);
+    }
 }

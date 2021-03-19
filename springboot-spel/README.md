@@ -10,7 +10,7 @@
 
 2. Enum 工具类
 3. re、like 的实现。匹配到多个怎么办？ reportMulti（模仿 spring）
-4. 别名
+4. ~~别名~~
 
 ![](https://tva1.sinaimg.cn/large/008eGmZEly1gooyk6uzakj31xa0oeq8q.jpg)
 
@@ -18,7 +18,7 @@
 
 ![](https://tva1.sinaimg.cn/large/008eGmZEly1gooyoqr23sj316d0u0k2b.jpg)
 
-5. 模仿 @Bean 注解，@Blueberry + @Config 注解，通过 beanpostprocess 或者 beanFactoryprocess 进行处理，到时候看看哪个合理一点
+5. ~~模仿 @Bean 注解，@Blueberry + @Config 注解，通过 beanpostprocess 或者 beanFactoryprocess 进行处理，到时候看看哪个合理一点~~
 
 ```java
 // 处理 @Configuration 的类继承了 BeanDefinitionRegistryPostProcessor（它继承了 BFPostProcessor），所以感觉我们也可以用 BFPostProcessor 处理
@@ -27,4 +27,6 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 
 ```
 
-BFR 和 AP 啥关系，看看我们这个合不合理
+![](https://tva1.sinaimg.cn/large/008eGmZEly1gop1pgvj81j32280tmtnl.jpg)
+
+6. 别名和名称都有的同名问题，有点复杂，暂不解决
