@@ -94,7 +94,7 @@ public class CustomizeExpressionResolverContext implements ExpressionResolverDef
      * @return 注册中心的表达式解析器的数量
      */
     @Override
-    public int getBeanDefinitionCount() {
+    public int getExpressionResolverDefinitionCount() {
         return expressionResolverDefinitionMap.size();
     }
 
@@ -196,7 +196,7 @@ public class CustomizeExpressionResolverContext implements ExpressionResolverDef
      */
     @Override
     public String resolvePlaceholder(String placeholder) {
-        String value = placeholder;
+        String value = null;
         // 查找出他的真实名称
         String nameToLookup = this.canonicalName(placeholder);
         if (expressionResolverDefinitionMap.containsKey(nameToLookup)) {

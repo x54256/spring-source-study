@@ -1,5 +1,5 @@
 初步完成自定义表达式（@{}）、属性表达式（${}）、spel 表达式的解析（#{}），剩余优化工作如下：
-1. 检测表达式是否正确（dubbo RpcResult、Tomcat 那个异常），直接返回这个对象，抛不抛异常由 Controller 决定
+1. ~~检测表达式是否正确（dubbo RpcResult、Tomcat 那个异常），直接返回这个对象，抛不抛异常由 Controller 决定~~
 ```
 原始表达式
 最终结果
@@ -30,3 +30,11 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 ![](https://tva1.sinaimg.cn/large/008eGmZEly1gop1pgvj81j32280tmtnl.jpg)
 
 6. 别名和名称都有的同名问题，有点复杂，暂不解决
+
+> 注：如果表达式的值是应该是 String 类型的，但是他也是一个数字，请带上''
+>
+> 例如：#{@{currRegionCode}.concat('JSYDGZQ.shx')} -> #{220512000000.concat('JSYDGZQ.shx')}，此时 SPEL 会将`220512000000`解析为 int 型，此时就会体现 SPEL 的两个问题：
+> 1. 它为啥会将其解析为数字呢，为啥发现没有 concat 方法的时候不会再把它当做字符串重试一次呢。
+> 2. [220512000000 超出了 int 能表示的大小，会出现解析失败](https://github.com/spring-projects/spring-framework/issues/20779)
+>
+> 所以此时只能改下我们的表达式 #{@{'currRegionCode'}.concat('JSYDGZQ.shx')}

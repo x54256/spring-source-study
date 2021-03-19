@@ -1,5 +1,6 @@
 package cn.x5456.spel.study.expression;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +24,12 @@ public class CompositeStringExpressionResolverTest {
     @Autowired
     private PropertiesExpressionResolver propertiesExpressionResolver;
 
+    @Autowired
+    private CustomizeExpressionResolver customizeExpressionResolver;
+
     @Test
     public void evaluate() {
-        String evaluate = resolver.evaluate("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
+        ResolveExpressionTrace evaluate = resolver.evaluate("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
         System.out.println("evaluate = " + evaluate);
     }
 
@@ -36,12 +40,12 @@ public class CompositeStringExpressionResolverTest {
 
     @Test
     public void testExpression() {
-        System.out.println(resolver.testExpression("#{@{currRegionCode_6}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx"));
+        System.out.println(resolver.testExpression("#{'@{currRegionCode}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx"));
     }
 
     @Test
     public void testAlias() {
-        String evaluate = resolver.evaluate("#{@{curr}.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
+        ResolveExpressionTrace evaluate = resolver.evaluate("#{'@{curr}'.toString().substring(0, 4).concat('00')}${JSYDGZQ:JSYDGZQ}.shx");
         System.out.println("evaluate = " + evaluate);
     }
 
@@ -52,7 +56,22 @@ public class CompositeStringExpressionResolverTest {
 
     @Test
     public void testBlueberryAlias() {
-        String evaluate = resolver.evaluate("@{phone}");
+        ResolveExpressionTrace evaluate = resolver.evaluate("@{phone}");
         System.out.println("evaluate = " + evaluate);
+    }
+
+    @Test
+    public void testError() {
+        System.out.println(resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}"));
+    }
+
+    @Test
+    public void testProperties() {
+        System.out.println(propertiesExpressionResolver.evaluate("${ksdjanksajcna}"));
+    }
+
+    @Test
+    public void testCustomize() {
+        Assert.assertEquals(customizeExpressionResolver.evaluate("@{ksdjanksajcna}"), "@{ksdjanksajcna}");
     }
 }

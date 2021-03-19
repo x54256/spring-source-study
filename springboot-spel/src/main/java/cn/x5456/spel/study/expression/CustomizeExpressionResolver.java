@@ -8,10 +8,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * 解析 @{} 表达式，从配置文件中取值，第一个解析 @{} 表达式
- * <p>
- * 可以把这个类里关于 @{ 和 } 的解析抽取出来变为一个抽象类
- * <p>
- * 加一个缓存，把已经计算过的表达式放进去
  *
  * @author yujx
  * @date 2021/03/18 09:40
@@ -53,9 +49,9 @@ public class CustomizeExpressionResolver extends AbstractExpressionResolver {
      */
     @Override
     public String testExpression(String placeholder) {
-        log.info("输入的表达式为：【{}】", placeholder);
+        log.info("正在解析「@\\{}」，输入的表达式为：【{}】", placeholder);
         String value = super.parseStringValue(placeholder, expressionResolverContext::defaultValue);
-        log.info("解析后的结果为：【{}】", value);
+        log.info("「@\\{}」解析完成，解析后的结果为：【{}】", value);
         return value;
     }
 

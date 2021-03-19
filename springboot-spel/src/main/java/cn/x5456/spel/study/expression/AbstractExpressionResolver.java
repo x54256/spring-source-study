@@ -46,9 +46,9 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
      */
     @Override
     public String evaluate(String placeholder) {
-        log.info("输入的表达式为：【{}】", placeholder);
+        log.info("正在解析「{}{}」，输入的表达式为：【{}】", placeholderPrefix, placeholderSuffix, placeholder);
         String value = this.parseStringValue(placeholder, this::resolvePlaceholder);
-        log.info("解析后的结果为：【{}】", value);
+        log.info("「{}{}」解析完成，解析后的结果为：【{}】", placeholderPrefix, placeholderSuffix, value);
         return value;
     }
 
@@ -131,6 +131,8 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
 
     /**
      * 解析表达式的值
+     *
+     * @return 如果没有解析出来，请返回 null
      */
     protected abstract String resolvePlaceholder(String placeholder);
 

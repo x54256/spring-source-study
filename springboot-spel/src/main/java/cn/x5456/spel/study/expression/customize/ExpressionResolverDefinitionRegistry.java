@@ -50,5 +50,5 @@ public interface ExpressionResolverDefinitionRegistry extends ExpressionResolver
     /**
      * @return 注册中心的表达式解析器的数量
      */
-    int getBeanDefinitionCount();
+    int getExpressionResolverDefinitionCount();
 }

@@ -6,6 +6,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 【废弃这种方案】模仿 {@link org.springframework.web.servlet.config.annotation.WebMvcConfigurerComposite}
@@ -27,22 +28,29 @@ public class CompositeStringExpressionResolver {
 
     /**
      * @param expression 表达式
+     * @param function
      * @return 替换表达式之后的结果
      */
-    public String evaluate(String expression) {
-        String value = expression;
-        for (StringExpressionResolver resolver : delegates) {
-            value = resolver.evaluate(value);
+    public ResolveExpressionTrace template(String expression, Function<StringExpressionResolver, String> function) {
+        ResolveExpressionTrace trace = new ResolveExpressionTrace(expression);
+        String value;
+        try {
+            for (StringExpressionResolver resolver : delegates) {
+                value = function.apply(resolver);
+                trace.addProcess(value);
+            }
+        } catch (Exception e) {
+            trace.recordErrorMsg(e);
         }
-        return value;
+        return trace;
     }
 
     // TODO: 2021/3/18 修改返回值
-    public String testExpression(String expression) {
-        String value = expression;
-        for (StringExpressionResolver resolver : delegates) {
-            value = resolver.testExpression(value);
-        }
-        return value;
+    public ResolveExpressionTrace testExpression(String expression) {
+        return this.template(expression, resolver -> resolver.testExpression(expression));
+    }
+
+    public ResolveExpressionTrace evaluate(String expression) {
+        return this.template(expression, resolver -> resolver.evaluate(expression));
     }
 }
