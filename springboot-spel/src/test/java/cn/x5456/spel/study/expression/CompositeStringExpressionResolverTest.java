@@ -67,6 +67,10 @@ public class CompositeStringExpressionResolverTest {
         resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}").recreate();
     }
 
+    public void testDefault() {
+        Assert.assertEquals("张江", resolver.testExpression("${addr}"));
+    }
+
     @Test
     public void testProperties() {
         Assert.assertEquals("${ksdjanksajcna}", propertiesExpressionResolver.evaluate("${ksdjanksajcna}"));

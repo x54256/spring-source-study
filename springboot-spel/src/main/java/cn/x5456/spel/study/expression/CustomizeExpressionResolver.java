@@ -1,5 +1,6 @@
 package cn.x5456.spel.study.expression;
 
+import cn.x5456.spel.study.expression.constants.ValueConstants;
 import cn.x5456.spel.study.expression.customize.CustomizeExpressionResolverContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,10 @@ public class CustomizeExpressionResolver extends AbstractExpressionResolver {
     public String testExpression(String placeholder) {
         log.info("正在解析「@\\{}」，输入的表达式为：【{}】", placeholder);
         String value = super.parseStringValue(placeholder, expressionResolverContext::defaultValue);
+        // 如果没有提供默认值，则调用正常的解析方法
+        if (value.equals(ValueConstants.DEFAULT_NONE)) {
+            value = resolvePlaceholder(placeholder);
+        }
         log.info("「@\\{}」解析完成，解析后的结果为：【{}】", value);
         return value;
     }
