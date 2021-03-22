@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
 /**
  * @author yujx
@@ -201,8 +200,8 @@ public class CustomizeExpressionResolverContext implements ExpressionResolverDef
         String nameToLookup = this.canonicalName(placeholder);
         if (expressionResolverDefinitionMap.containsKey(nameToLookup)) {
             ExpressionResolverDefinition expressionResolverDefinition = expressionResolverDefinitionMap.get(nameToLookup);
-            Supplier<String> supplier = expressionResolverDefinition.getExpressionResolver();
-            value = supplier.get();
+            ExpressionResolver resolver = expressionResolverDefinition.getExpressionResolver();
+            value = resolver.get();
         }
         return value;
     }

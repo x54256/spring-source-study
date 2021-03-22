@@ -2,7 +2,6 @@ package cn.x5456.spel.study.expression.customize;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * @author yujx
@@ -19,7 +18,7 @@ public class ExpressionResolverDefinition {
     // 别名列表
     private List<String> aliasList = new ArrayList<>();
 
-    public Supplier<String> getExpressionResolver() {
+    public ExpressionResolver getExpressionResolver() {
         return expressionResolver;
     }
 
