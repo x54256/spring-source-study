@@ -45,7 +45,7 @@ public class CompositeStringExpressionResolver {
         try {
             for (StringExpressionResolver resolver : delegates) {
                 value = biFunction.apply(resolver, value);
-                trace.addProcess(value);
+                trace.addProcess(value, resolver);
             }
         } catch (Exception e) {
             trace.recordErrorMsg(e);

@@ -1,5 +1,6 @@
 package cn.x5456.spel.study.expression;
 
+import cn.hutool.core.util.StrUtil;
 import cn.x5456.spel.study.expression.constants.ValueConstants;
 import cn.x5456.spel.study.expression.customize.CustomizeExpressionResolverContext;
 import org.slf4j.Logger;
@@ -53,7 +54,12 @@ public class CustomizeExpressionResolver extends AbstractExpressionResolver {
         String value = super.parseStringValue(placeholder, expressionResolverContext::defaultValue);
         // 如果没有提供默认值，则调用正常的解析方法
         if (value.equals(ValueConstants.DEFAULT_NONE)) {
-            value = resolvePlaceholder(placeholder);
+            try {
+                value = super.evaluate(placeholder);
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        StrUtil.format("表达式「{}」中的某些「@{}」表达式没有提供默认值，无法进行测试！", placeholder), e);
+            }
         }
         log.info("「@\\{}」解析完成，解析后的结果为：【{}】", value);
         return value;

@@ -23,7 +23,17 @@ public interface ExpressionResolver<T> extends Ordered {
      * @param placeholder 表达式
      * @return 替换表达式之后的结果
      */
-    default T testExpression(String placeholder){
+    default T testExpression(String placeholder) {
         return this.evaluate(placeholder);
     }
+
+    /**
+     * @return 返回表达式前缀
+     */
+    String getPlaceholderPrefix();
+
+    /**
+     * @return 返回表达式后缀
+     */
+    String getPlaceholderSuffix();
 }

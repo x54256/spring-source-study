@@ -17,9 +17,24 @@ public class ExpressionResolverConfig {
         return "456";
     }
 
+    /*
+     由于没有设置表达式的名称，则默认名称为方法名 addr。
+     因为没有配置默认值，当调用 CustomizeExpressionResolver.testExpression 方法时会调用这个方法返回"张江"
+     */
     @Blueberry
     public String addr(ExpressionResolverConfig config) {
         return "张江";
+    }
+
+    /*
+     由于没有设置表达式的名称，则默认名称为方法名 addr。
+     因为没有配置默认值，当调用 CustomizeExpressionResolver.testExpression 方法时会调用这个方法并且报错
+     */
+    @Blueberry
+    public String dogName() {
+        // 此处模拟的是从 ThreadLocal 中取出参数，但是却没有时的报错
+        int a = 1 / 0;
+        return "哒哒";
     }
 
     // 错误示范，返回值类型不正确

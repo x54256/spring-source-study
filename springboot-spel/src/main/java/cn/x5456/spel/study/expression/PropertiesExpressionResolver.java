@@ -42,6 +42,16 @@ public class PropertiesExpressionResolver implements StringExpressionResolver {
         return value;
     }
 
+    @Override
+    public String getPlaceholderPrefix() {
+        return "${";
+    }
+
+    @Override
+    public String getPlaceholderSuffix() {
+        return "}";
+    }
+
     /**
      * @return 返回的值越小优先级越高
      */

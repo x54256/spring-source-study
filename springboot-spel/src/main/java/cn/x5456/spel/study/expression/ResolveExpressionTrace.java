@@ -39,14 +39,15 @@ public class ResolveExpressionTrace implements Serializable {
         this.processes.add(StrUtil.format("初始表达式为：「{}」", placeholder));
     }
 
-    public void addProcess(String value) {
+    public void addProcess(String value, StringExpressionResolver resolver) {
         this.result = value;
-        this.processes.add(StrUtil.format("第「{}」步解析后的结果为：「{}」", stepNum.incrementAndGet(), value));
+        this.processes.add(StrUtil.format("第「{}」步解析表达式「{}{}」，解析后的结果为：「{}」",
+                stepNum.incrementAndGet(), resolver.getPlaceholderPrefix(), resolver.getPlaceholderSuffix(), value));
     }
 
     public void recordErrorMsg(Exception exception) {
         this.hasException = true;
-        String msg = StrUtil.format("解析表达式「{}」时出现错误，错误内容为「{}」！", placeholder, exception.getMessage());
+        String msg = StrUtil.format("解析表达式「{}」时出现错误，错误类型为「{}」，错误内容为「{}」！", placeholder, exception.getClass().getSimpleName(), exception.getMessage());
         this.processes.add(msg);
         this.errorMessage = msg;
         this.exception = exception;
@@ -57,7 +58,8 @@ public class ResolveExpressionTrace implements Serializable {
     }
 
     public ResolveExpressionTraceException getException() {
-        return new ResolveExpressionTraceException(errorMessage, exception);
+        String msg = StrUtil.format("{}\n解析的过程如下：\n{}", errorMessage, String.join(System.lineSeparator(), processes));
+        return new ResolveExpressionTraceException(msg, exception);
     }
 
     public boolean hasException() {

@@ -132,7 +132,7 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
     /**
      * 解析表达式的值
      *
-     * @return 如果没有解析出来，请返回 null
+     * @return 如果没有解析出来，请返回 null，否则将会出现 @{abcxxx} 被解析成 abcxxx 这种情况
      */
     protected abstract String resolvePlaceholder(String placeholder);
 
@@ -149,5 +149,15 @@ public abstract class AbstractExpressionResolver implements StringExpressionReso
 
     public void setValueSeparator(String valueSeparator) {
         this.valueSeparator = valueSeparator;
+    }
+
+    @Override
+    public String getPlaceholderPrefix() {
+        return placeholderPrefix;
+    }
+
+    @Override
+    public String getPlaceholderSuffix() {
+        return placeholderSuffix;
     }
 }

@@ -67,8 +67,9 @@ public class CompositeStringExpressionResolverTest {
         resolver.evaluate("#{@{currRegionCode}.concat('JSYDGZQ.shx')}").recreate();
     }
 
+    @Test
     public void testDefault() {
-        Assert.assertEquals("张江", resolver.testExpression("${addr}"));
+        Assert.assertEquals("张江", resolver.testExpression("@{addr}").recreate());
     }
 
     @Test
@@ -79,5 +80,10 @@ public class CompositeStringExpressionResolverTest {
     @Test
     public void testCustomize() {
         Assert.assertEquals("@{ksdjanksajcna}", customizeExpressionResolver.evaluate("@{ksdjanksajcna}"));
+    }
+
+    @Test(expected = ResolveExpressionTraceException.class)
+    public void testErrorTest() {
+        resolver.testExpression("@{dogName}").recreate();
     }
 }
