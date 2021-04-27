@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.lang.Pair;
 import cn.hutool.core.util.HexUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import cn.hutool.crypto.digest.DigestAlgorithm;
@@ -29,6 +30,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.ReactiveGridFsResource;
 import org.springframework.data.mongodb.gridfs.ReactiveGridFsTemplate;
 import org.springframework.stereotype.Component;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.security.MessageDigest;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author yujx
@@ -93,6 +96,7 @@ public class MongoResourceStorage implements IResourceStorage {
 
     /**
      * 上传文件到文件服务
+     * todo 要是上传了一半线程挂了，或者服务器挂了怎么办，状态已经不会改变了但他又在那占着坑
      *
      * @param localFilePath 本地文件路径
      * @param fileName      文件名
@@ -195,9 +199,8 @@ public class MongoResourceStorage implements IResourceStorage {
     @Override
     public Mono<Boolean> downloadFile(String localFilePath, String path) {
         return this.getResourceInfo(path)
-                .flatMap(r -> Objects.isNull(r) ?
-                        Mono.error(new RuntimeException(StrUtil.format("输入的 path：「{}」不正确！", path))) : Mono.just(r)
-                ).flatMap(r -> {
+                .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("输入的 path：「{}」不正确！", path))))
+                .flatMap(r -> {
                     String fileHash = r.getFileHash();
                     return this.download(fileHash).flatMap(srcPath -> {
                         if (!this.createSymbolicLink(srcPath, localFilePath)) {
@@ -210,6 +213,25 @@ public class MongoResourceStorage implements IResourceStorage {
                         return Mono.just(true);
                     });
                 });
+    }
+
+    @NotNull
+    private Mono<FileMetadata> getReadyMetadata(String fileHash) {
+        int randomInt = RandomUtil.randomInt(100, 4000);
+        return Mono.create(sink -> {
+            Disposable disposable = scheduler.schedulePeriodically(() -> {
+                this.getFileMetadata(fileHash)
+                        .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("hash 值为「{}」的文件元数据不存在！", fileHash))))
+                        .doOnError(sink::error)
+                        .subscribe(metadata -> {
+                            if (metadata.getStatus().equals(FileMetadata.Status.文件上传成功)) {
+                                sink.success(metadata);
+                            }
+                        });
+            }, 0, randomInt, TimeUnit.MILLISECONDS);
+            // 当有数据之后停止定时任务
+            sink.onDispose(disposable);
+        });
     }
 
     private boolean createSymbolicLink(String sourceFile, String linkFilePath) {
@@ -229,8 +251,7 @@ public class MongoResourceStorage implements IResourceStorage {
     // 可以用 flatMap 串起来
     @NotNull
     private Mono<String> download(String fileHash) {
-        return this.getFileMetadata(fileHash)
-                // todo 这块要等待文件就绪
+        return this.getReadyMetadata(fileHash)
                 .flatMap(m -> {
                     // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
                     String tempPath = LOCAL_TEMP_PATH + m.getFileHash() + SUFFIX;
@@ -262,9 +283,8 @@ public class MongoResourceStorage implements IResourceStorage {
     @Override
     public Mono<Pair<String, Flux<DataBuffer>>> downloadFileDataBuffer(String path) {
         return this.getResourceInfo(path)
-                .flatMap(r -> Objects.isNull(r) ?
-                        Mono.error(new RuntimeException(StrUtil.format("输入的 path：「{}」不正确！", path))) : Mono.just(r)
-                ).flatMap(r -> {
+                .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("输入的 path：「{}」不正确！", path))))
+                .flatMap(r -> {
                     String fileHash = r.getFileHash();
                     String fileName = r.getFileName();
 
@@ -273,22 +293,10 @@ public class MongoResourceStorage implements IResourceStorage {
                         return new Pair<>(fileName, read);
                     });
                 });
-//        return Mono.create(sink -> this.getResourceInfo(path).subscribe(r -> {
-//            if (Objects.isNull(r)) {
-//                sink.error(new RuntimeException(StrUtil.format("输入的 path：「{}」不正确！", path)));
-//            }
-//
-//            String fileHash = r.getFileHash();
-//            String fileName = r.getFileName();
-//
-//            this.download(fileHash).subscribe(localFilePath -> {
-//                Flux<DataBuffer> read = DataBufferUtils.read(new FileSystemResource(localFilePath), dataBufferFactory, DEFAULT_CHUNK_SIZE);
-//                sink.success(new Pair<>(fileName, read));
-//            });
-//        }));
     }
 
-    public Mono<FsResourceInfo> getResourceInfo(String path) {
+    @NotNull
+    private Mono<FsResourceInfo> getResourceInfo(String path) {
         return mongoTemplate.findOne(Query.query(Criteria.where(FsResourceInfo.PATH).is(path)), FsResourceInfo.class);
     }
 
@@ -346,6 +354,16 @@ public class MongoResourceStorage implements IResourceStorage {
          */
         @Override
         public Mono<Boolean> uploadFileChunk(String fileHash, int chunk, Flux<DataBuffer> dataBufferFlux) {
+            /*
+            1. 检查文件 hash 是否存在
+            2. 如果不存在，则在 fs.metadata 表创建一个
+            3. 如果创建失败，则证明存在，则从 fs.metadata 中取出
+            4. 去 fs.temp 表创建当前分片的缓存
+            5. 如果创建成功，则执行上传逻辑，保存到 fs.temp 表中，返回 true
+            6. 如果创建失败，则证明已经有了一个线程抢先上传了，返回 false
+             */
+
+
             return null;
         }
 
