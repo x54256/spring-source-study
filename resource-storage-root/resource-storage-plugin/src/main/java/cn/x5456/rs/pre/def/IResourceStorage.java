@@ -81,7 +81,7 @@ public interface IResourceStorage {
     // ============================== 分片上传大文件异步 api
 
 
-    BigFileUploader getBigFileUploader(String fileHash);
+    BigFileUploader getBigFileUploader();
 
 
 //    // TODO: 2021/4/25 你说文件名和一共几片需不需要我们来管理，还有上传的状态，是否上传完成这种的

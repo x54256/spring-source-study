@@ -18,6 +18,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @CompoundIndexes(@CompoundIndex(name = "hash_chunk_unique_index", def = "{'fileHash' : 1, 'chunk': 1}", unique = true))
 public class FsFileTemp {
 
+    public static final String FILE_HASH = "fileHash";
+    public static final String CHUNK = "chunk";
+    public static final String UPLOAD_PROGRESS = "uploadProgress";
+
     @Id
     private String id;
 
@@ -31,7 +35,7 @@ public class FsFileTemp {
     private String fsFilesId;
 
     // 当前片的大小
-    private Integer chunkSize;
+    private Long chunkSize;
 
     // 上传进度
     private UploadProgress uploadProgress;

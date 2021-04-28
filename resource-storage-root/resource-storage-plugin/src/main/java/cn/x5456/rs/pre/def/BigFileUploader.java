@@ -47,19 +47,11 @@ public interface BigFileUploader {
     Mono<Boolean> uploadCompleted(String fileHash, String fileName, int totalNumberOfChunks, String path);
 
     /**
-     * 上传失败，清理
+     * 上传失败，清理缓存表
      *
      * @param fileHash 文件 hash
-     * @return void
+     * @return 操作是否成功
      */
-    Mono<Void> uploadError(String fileHash);
-
-    /**
-     * 如果构造传入需要本地合并，则返回文件，否则 FileNotFoundEx -> 父类注释不要是这个
-     *
-     * @param localFilePath 转储到的本地路径
-     * @return void
-     */
-    Mono<Void> transferTo(String localFilePath);
+    Mono<Boolean> uploadError(String fileHash);
 
 }

@@ -1,5 +1,5 @@
 package cn.x5456.rs.pre;
-
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.lang.Pair;
@@ -12,6 +12,8 @@ import cn.x5456.rs.pre.def.BigFileUploader;
 import cn.x5456.rs.pre.def.IResourceStorage;
 import cn.x5456.rs.pre.def.UploadProgress;
 import cn.x5456.rs.pre.document.FileMetadata;
+import cn.x5456.rs.pre.document.FileMetadata.Status;
+import cn.x5456.rs.pre.document.FsFileTemp;
 import cn.x5456.rs.pre.document.FsResourceInfo;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.DeleteResult;
@@ -39,8 +41,8 @@ import reactor.core.scheduler.Schedulers;
 import java.io.IOException;
 import java.nio.file.*;
 import java.security.MessageDigest;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author yujx
@@ -54,12 +56,14 @@ public class MongoResourceStorage implements IResourceStorage {
      * 256 KB
      * {@see org.springframework.data.mongodb.gridfs.ReactiveGridFsResource.DEFAULT_CHUNK_SIZE}
      */
-    private static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
+    public static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
 
     // TODO: 2021/4/26 后缀改为推测
     private static final String SUFFIX = ".tmp";
 
     private static final String LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir");
+
+    private final BigFileUploader INSTANCE = new BigFileUploaderImpl();
 
     private DataBufferFactory dataBufferFactory;
 
@@ -162,20 +166,18 @@ public class MongoResourceStorage implements IResourceStorage {
     @NotNull
     private Mono<FileMetadata> doUploadFile(String fileHash, Flux<DataBuffer> dataBufferFlux) {
         return Mono.create(sink -> {
-            // main
-            FileMetadata fileMetadata = new FileMetadata();
-            fileMetadata.setFileHash(fileHash);
-            fileMetadata.setStatus(FileMetadata.Status.初始状态);
-
-            // reactive mongo thread
             // 尝试保存文件元数据信息
-            mongoTemplate.save(fileMetadata)
+            this.saveFileMetadata(fileHash)
                     // 如果保存失败，则证明数据库中已经有了 hash 值为 fileHash 的数据，那么取出并返回
                     .doOnError(DuplicateKeyException.class, ex -> this.getFileMetadata(fileHash).subscribe(sink::success))
                     // 如果保存成功，则上传文件，完善文件元数据信息
                     .flatMap(m -> gridFsTemplate.store(dataBufferFlux, fileHash + SUFFIX)
+                            .doOnError(ex -> {
+                                // 如果上传时遇到错误，则删除当前上传文件的元数据，留给下一次上传
+                                mongoTemplate.remove(m);
+                                sink.error(ex);
+                            })
                             .flatMap(objectId -> {
-                                // TODO: 2021/4/26 改为支持多个片的，不知道需不需要这样改 -》 不用改
                                 m.setStatus(FileMetadata.Status.文件上传成功);
                                 m.setTotalNumberOfChunks(1);
                                 m.setFsFilesInfoList(Lists.newArrayList(
@@ -184,6 +186,19 @@ public class MongoResourceStorage implements IResourceStorage {
                             })).subscribe(sink::success);
         });
     }
+
+    @NotNull
+    private Mono<FileMetadata> saveFileMetadata(String fileHash) throws DuplicateKeyException {
+        // main
+        FileMetadata fileMetadata = new FileMetadata();
+        fileMetadata.setFileHash(fileHash);
+        fileMetadata.setStatus(FileMetadata.Status.初始状态);
+
+        // reactive mongo thread
+        // 尝试保存文件元数据信息
+        return mongoTemplate.save(fileMetadata);
+    }
+
 
     private Long getChunkSize(Flux<DataBuffer> dataBufferFlux) {
         return dataBufferFlux.reduce(0L, (a, b) -> a += b.readableByteCount()).block();
@@ -215,25 +230,6 @@ public class MongoResourceStorage implements IResourceStorage {
                 });
     }
 
-    @NotNull
-    private Mono<FileMetadata> getReadyMetadata(String fileHash) {
-        int randomInt = RandomUtil.randomInt(100, 4000);
-        return Mono.create(sink -> {
-            Disposable disposable = scheduler.schedulePeriodically(() -> {
-                this.getFileMetadata(fileHash)
-                        .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("hash 值为「{}」的文件元数据不存在！", fileHash))))
-                        .doOnError(sink::error)
-                        .subscribe(metadata -> {
-                            if (metadata.getStatus().equals(FileMetadata.Status.文件上传成功)) {
-                                sink.success(metadata);
-                            }
-                        });
-            }, 0, randomInt, TimeUnit.MILLISECONDS);
-            // 当有数据之后停止定时任务
-            sink.onDispose(disposable);
-        });
-    }
-
     private boolean createSymbolicLink(String sourceFile, String linkFilePath) {
         try {
             Files.createSymbolicLink(FileSystems.getDefault().getPath(linkFilePath), FileSystems.getDefault().getPath(sourceFile));
@@ -257,6 +253,25 @@ public class MongoResourceStorage implements IResourceStorage {
                     String tempPath = LOCAL_TEMP_PATH + m.getFileHash() + SUFFIX;
                     return FileUtil.exist(tempPath) ? Mono.just(tempPath) : this.doDownload(m, tempPath);
                 });
+    }
+
+    @NotNull
+    private Mono<FileMetadata> getReadyMetadata(String fileHash) {
+        int randomInt = RandomUtil.randomInt(100, 4000);
+        return Mono.create(sink -> {
+            Disposable disposable = scheduler.schedulePeriodically(() -> {
+                this.getFileMetadata(fileHash)
+                        .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("hash 值为「{}」的文件元数据不存在！", fileHash))))
+                        .doOnError(sink::error)
+                        .subscribe(metadata -> {
+                            if (metadata.getStatus().equals(FileMetadata.Status.文件上传成功)) {
+                                sink.success(metadata);
+                            }
+                        });
+            }, 0, randomInt, TimeUnit.MILLISECONDS);
+            // 当有数据之后停止定时任务
+            sink.onDispose(disposable);
+        });
     }
 
     @NotNull
@@ -325,8 +340,8 @@ public class MongoResourceStorage implements IResourceStorage {
     }
 
     @Override
-    public BigFileUploader getBigFileUploader(String fileHash) {
-        return null;
+    public BigFileUploader getBigFileUploader() {
+        return INSTANCE;
     }
 
     class BigFileUploaderImpl implements BigFileUploader {
@@ -339,13 +354,13 @@ public class MongoResourceStorage implements IResourceStorage {
          */
         @Override
         public Mono<Boolean> secondPass(String fileHash) {
-            return MongoResourceStorage.this.getFileMetadata(fileHash).map(Objects::nonNull);
+            return MongoResourceStorage.this.getFileMetadata(fileHash).map(m -> true)
+                    // 查不到数据时返回的是一个空的 Mono，并不会调用 map()，所以需要使用 defaultIfEmpty 返回值
+                    .defaultIfEmpty(false);
         }
 
         /**
          * 上传每一片文件
-         * 1. 检查 hash 是否存在，避免重复上传
-         * 2. 上传时检查上传进度，如果已经在上传那就不上传了
          *
          * @param fileHash       文件 hash
          * @param chunk          第几片
@@ -358,13 +373,43 @@ public class MongoResourceStorage implements IResourceStorage {
             1. 检查文件 hash 是否存在
             2. 如果不存在，则在 fs.metadata 表创建一个
             3. 如果创建失败，则证明存在，则从 fs.metadata 中取出
+
             4. 去 fs.temp 表创建当前分片的缓存
             5. 如果创建成功，则执行上传逻辑，保存到 fs.temp 表中，返回 true
             6. 如果创建失败，则证明已经有了一个线程抢先上传了，返回 false
              */
+            return Mono.create(sink -> MongoResourceStorage.this.getFileMetadata(fileHash)
+                    .switchIfEmpty(this.createOrGet(fileHash))
+                    .flatMap(metadata -> this.saveChunkTempInfo(fileHash, chunk))
+                    .doOnError(DuplicateKeyException.class, ex -> sink.success(false))
+                    .subscribe(temp -> gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
+                            .doOnError(ex -> {
+                                // 上传失败，删除缓存表信息
+                                mongoTemplate.remove(temp);
+                                sink.error(ex);
+                            })
+                            .flatMap(objectId -> {
+                                temp.setFsFilesId(objectId.toHexString());
+                                temp.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
+                                temp.setChunkSize(MongoResourceStorage.this.getChunkSize(dataBufferFlux));
+                                return mongoTemplate.save(temp);
+                            }).subscribe(t -> sink.success(true))));
+        }
 
+        private Mono<FileMetadata> createOrGet(String fileHash) {
+            // 尝试保存文件元数据信息
+            return MongoResourceStorage.this.saveFileMetadata(fileHash)
+                    // 如果保存失败，则证明数据库中已经有了 hash 值为 fileHash 的数据，那么取出并返回
+                    .onErrorResume(DuplicateKeyException.class, ex -> MongoResourceStorage.this.getFileMetadata(fileHash));
+        }
 
-            return null;
+        private Mono<FsFileTemp> saveChunkTempInfo(String fileHash, int chunk) throws DuplicateKeyException {
+            // 尝试添加一条记录
+            FsFileTemp fsFileTemp = new FsFileTemp();
+            fsFileTemp.setFileHash(fileHash);
+            fsFileTemp.setChunk(chunk);
+            fsFileTemp.setUploadProgress(UploadProgress.UPLOADING);
+            return mongoTemplate.save(fsFileTemp);
         }
 
         /**
@@ -375,11 +420,14 @@ public class MongoResourceStorage implements IResourceStorage {
          */
         @Override
         public Flux<Pair<Integer, UploadProgress>> uploadProgress(String fileHash) {
-            return null;
+            Criteria criteria = Criteria.where(FsFileTemp.FILE_HASH).is(fileHash);
+            return mongoTemplate.find(Query.query(criteria), FsFileTemp.class)
+                    .map(temp -> new Pair<>(temp.getChunk(), temp.getUploadProgress()));
         }
 
         /**
          * 全部上传完成（文件名，总块数"用来做校验"），有什么办法保证数据无法被更改
+         * todo 集群或者多线程咋办
          *
          * @param fileHash            文件 hash
          * @param fileName            文件名
@@ -389,29 +437,72 @@ public class MongoResourceStorage implements IResourceStorage {
          */
         @Override
         public Mono<Boolean> uploadCompleted(String fileHash, String fileName, int totalNumberOfChunks, String path) {
-            return null;
+            /*
+            1. 校验传入的片数是否与系统中的片数相同
+            2. 根据 fileHash 查出元数据信息，完善元数据信息
+            3. 在 fs.resource 添加引用
+            4. 删除缓存表数据
+             */
+
+
+            // 查询上传成功的
+            Criteria criteria = Criteria.where(FsFileTemp.FILE_HASH).is(fileHash)
+                    .and(FsFileTemp.UPLOAD_PROGRESS).is(UploadProgress.UPLOAD_COMPLETED);
+            Query query = Query.query(criteria);
+
+            return mongoTemplate.find(query, FsFileTemp.class)
+                    .switchIfEmpty(Mono.error(new RuntimeException("输入的 fileHash 有误或者已经上传完成！")))
+                    .collectList()
+                    .flatMap(tempList -> {
+                                if (tempList.size() != totalNumberOfChunks) {
+                                    return Mono.error(new RuntimeException("传入的片数与服务器中的片数不符，请检查或稍后再试！"));
+                                }
+
+                                return MongoResourceStorage.this.getFileMetadata(fileHash)
+                                        // 根据 fileHash 查出元数据信息，完善元数据信息
+                                        .flatMap(metadata -> {
+                                            metadata.setTotalNumberOfChunks(totalNumberOfChunks);
+                                            metadata.setFsFilesInfoList(
+                                                    tempList.stream().map(x -> BeanUtil.copyProperties(x, FileMetadata.FsFilesInfo.class)).collect(Collectors.toList()));
+                                            metadata.setStatus(Status.文件上传成功);
+                                            return mongoTemplate.save(metadata);
+                                        })
+                                        // 在 fs.resource 添加引用
+                                        .flatMap(metadata -> MongoResourceStorage.this.insertResource(metadata, fileName, path))
+//                                        .map(r -> true)
+//                                        .doOnSuccess(b -> scheduler.schedule(() -> this.cleanTemp(fileHash)));
+                                        // 删除缓存表数据 todo 原子性，改为单独开一个线程删除吧，不管他成不成功了
+                                        // todo 不过支持事务了 since 2.2. Use {@code @Transactional} or {@link TransactionalOperator}.
+                                        // todo 感觉还是改成事务吧
+                                        .flatMap(r -> this.cleanTemp(fileHash));
+                            }
+                    );
         }
 
         /**
-         * 上传失败，清理
+         * 上传失败，清理缓存表
          *
          * @param fileHash 文件 hash
-         * @return void
+         * @return 操作是否成功
          */
         @Override
-        public Mono<Void> uploadError(String fileHash) {
-            return null;
+        public Mono<Boolean> uploadError(String fileHash) {
+            return cleanTemp(fileHash);
         }
 
-        /**
-         * 如果构造传入需要本地合并，则返回文件，否则 FileNotFoundEx -> 父类注释不要是这个
-         *
-         * @param localFilePath 转储到的本地路径
-         * @return void
-         */
-        @Override
-        public Mono<Void> transferTo(String localFilePath) {
-            return null;
+        @NotNull
+        private Mono<Boolean> cleanTemp(String fileHash) {
+            // 清理缓存表
+            Criteria criteria = Criteria.where(FsFileTemp.FILE_HASH).is(fileHash);
+            return mongoTemplate.find(Query.query(criteria), FsFileTemp.class)
+                    .flatMap(mongoTemplate::remove)
+                    .collectList()
+                    .map(deleteResults -> true);
         }
     }
+
+
+    /*
+    定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
+     */
 }

@@ -64,10 +64,12 @@ public class FileMetadata {
     }
 
 
+    // TODO: 2021/4/27 失败
     public enum Status implements EnumInterface {
 
         初始状态(0, "初始状态"),
         文件上传成功(1, "文件上传成功"),
+        文件上传失败(2, "")
 //        已就绪(2, "资源已就绪"),
         ;
 
