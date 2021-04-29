@@ -1,6 +1,6 @@
 package cn.x5456.rs.pre.document;
 
-import cn.x5456.rs.base.EnumInterface;
+import cn.x5456.rs.pre.def.UploadProgress;
 import com.mongodb.lang.NonNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -45,8 +45,8 @@ public class FileMetadata {
     // 其他元数据信息
     private Map<String, Object> metadata;
 
-    // TODO: 2021/4/26 要不要加状态呢
-    private Status status;
+    // 上传进度
+    private UploadProgress uploadProgress;
 
     @Data
     @AllArgsConstructor
@@ -61,34 +61,5 @@ public class FileMetadata {
 
         // 当前片的大小
         private Long chunkSize;
-    }
-
-
-    // TODO: 2021/4/27 失败
-    public enum Status implements EnumInterface {
-
-        初始状态(0, "初始状态"),
-        文件上传成功(1, "文件上传成功"),
-        文件上传失败(2, "")
-//        已就绪(2, "资源已就绪"),
-        ;
-
-        int code;
-        String desc;
-
-        Status(int code, String desc) {
-            this.code = code;
-            this.desc = desc;
-        }
-
-        @Override
-        public int code() {
-            return code;
-        }
-
-        @Override
-        public String desc() {
-            return desc;
-        }
     }
 }

@@ -13,7 +13,6 @@ import cn.x5456.rs.pre.def.BigFileUploader;
 import cn.x5456.rs.pre.def.IResourceStorage;
 import cn.x5456.rs.pre.def.UploadProgress;
 import cn.x5456.rs.pre.document.FileMetadata;
-import cn.x5456.rs.pre.document.FileMetadata.Status;
 import cn.x5456.rs.pre.document.FsFileTemp;
 import cn.x5456.rs.pre.document.FsResourceInfo;
 import com.google.common.collect.Lists;
@@ -185,7 +184,7 @@ public class MongoResourceStorage implements IResourceStorage {
                                 sink.error(ex);
                             })
                             .flatMap(objectId -> {
-                                m.setStatus(FileMetadata.Status.文件上传成功);
+                                m.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
                                 m.setTotalNumberOfChunks(1);
                                 m.setFsFilesInfoList(Lists.newArrayList(
                                         new FileMetadata.FsFilesInfo(0, objectId.toHexString(), this.getChunkSize(dataBufferFlux))));
@@ -199,7 +198,7 @@ public class MongoResourceStorage implements IResourceStorage {
         // main
         FileMetadata fileMetadata = new FileMetadata();
         fileMetadata.setFileHash(fileHash);
-        fileMetadata.setStatus(FileMetadata.Status.初始状态);
+        fileMetadata.setUploadProgress(UploadProgress.UPLOADING);
 
         // reactive mongo thread
         // 尝试保存文件元数据信息
@@ -281,7 +280,7 @@ public class MongoResourceStorage implements IResourceStorage {
                         .switchIfEmpty(Mono.error(new RuntimeException(StrUtil.format("hash 值为「{}」的文件元数据不存在！", fileHash))))
                         .doOnError(sink::error)
                         .subscribe(metadata -> {
-                            if (metadata.getStatus().equals(FileMetadata.Status.文件上传成功)) {
+                            if (metadata.getUploadProgress().equals(UploadProgress.UPLOAD_COMPLETED)) {
                                 sink.success(metadata);
                             }
                         });
@@ -509,7 +508,7 @@ public class MongoResourceStorage implements IResourceStorage {
                                             metadata.setTotalNumberOfChunks(totalNumberOfChunks);
                                             metadata.setFsFilesInfoList(
                                                     tempList.stream().map(x -> BeanUtil.copyProperties(x, FileMetadata.FsFilesInfo.class)).collect(Collectors.toList()));
-                                            metadata.setStatus(Status.文件上传成功);
+                                            metadata.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
                                             return mongoTemplate.save(metadata);
                                         })
                                         // 在 fs.resource 添加引用
