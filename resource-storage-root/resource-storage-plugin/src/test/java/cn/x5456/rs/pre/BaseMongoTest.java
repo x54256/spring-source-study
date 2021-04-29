@@ -43,6 +43,7 @@ public class BaseMongoTest {
 
     String databaseName = IdUtil.simpleUUID();
 
+    // TODO: 2021/4/29 这个也是每次执行都会调用一次
     @PostConstruct
     public void preClass() {
         MongoClient mongoClient = MongoClients.create();

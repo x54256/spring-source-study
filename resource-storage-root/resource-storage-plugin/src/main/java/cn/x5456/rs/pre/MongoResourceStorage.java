@@ -16,6 +16,8 @@ import cn.x5456.rs.pre.document.FileMetadata;
 import cn.x5456.rs.pre.document.FsFileTemp;
 import cn.x5456.rs.pre.document.FsResourceInfo;
 import com.google.common.annotations.Beta;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
@@ -49,6 +51,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -74,11 +77,20 @@ public class MongoResourceStorage implements IResourceStorage {
     static final String LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir");
 
     /**
-     * 布隆过滤器，过滤重复请求
+     * 布隆过滤器，过滤重复请求 todo 配合 hash 环
      */
     private BloomFilter<CharSequence> bloomFilter = BloomFilter.create(
             // Funnel 预估元素个数 误判率
             Funnels.stringFunnel(Charset.defaultCharset()), 1024, 0.01);
+
+    /**
+     * 构建一个 LRU 缓存实例 todo 配合 hash 环
+     */
+    private Cache<String, FileMetadata> cache = CacheBuilder.newBuilder()
+            .maximumSize(100) // 设置缓存的最大容量
+            .concurrencyLevel(10) // 设置并发级别为 10
+            .recordStats() // 开启缓存统计
+            .build();
 
     private final BigFileUploader INSTANCE = new BigFileUploaderImpl();
 
@@ -259,6 +271,17 @@ public class MongoResourceStorage implements IResourceStorage {
     @NotNull
     private Mono<String> download(String fileHash) {
         return Mono.create(sink -> {
+            // 先从缓存中获取，节省一次查询
+            FileMetadata metadata = cache.getIfPresent(fileHash);
+            if (Objects.nonNull(metadata)) {
+                // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
+                String tempPath = LOCAL_TEMP_PATH + metadata.getFileHash() + SUFFIX;
+                if (FileUtil.exist(tempPath)) {
+                    sink.success(tempPath);
+                    return;
+                }
+            }
+
             this.getReadyMetadata(fileHash)
                     .subscribe(m -> {
                         // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
@@ -502,7 +525,7 @@ public class MongoResourceStorage implements IResourceStorage {
         }
 
         /**
-         * 获取上传进度 {1: 上传完成， 0: 上传中，2：失败}  1  2  4  8  与运算
+         * 获取上传进度 {1: 上传完成， 0: 上传中，2：失败}
          *
          * @param fileHash 文件 hash
          * @return 上传进度
