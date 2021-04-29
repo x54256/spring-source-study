@@ -19,13 +19,17 @@ import java.util.Map;
 @Document("fs.metadata")
 public class FileMetadata {
 
-    public static final String FILE_HASH = "fileHash";
+    public static final String FILE_HASH = "id";
 
     @Id
     private String id;
 
-    // TODO: 2021/4/25 上传的过程中，有人上传多个怎么办，完了，涉及到分布式锁了
-    // 文件 hash 值，建议使用 sha256
+    /**
+     * 文件 hash 值，建议使用 sha256
+     *
+     * @deprecated {@link FileMetadata#id}
+     */
+    @Deprecated
     @Indexed(unique = true)
     private String fileHash;
 

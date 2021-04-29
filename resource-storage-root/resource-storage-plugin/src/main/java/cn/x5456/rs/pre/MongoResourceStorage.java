@@ -176,9 +176,6 @@ public class MongoResourceStorage implements IResourceStorage {
         });
     }
 
-    /**
-     * 这个方法也会出现唯一索引失效的情况，不过概率比较低，就不改了
-     */
     @NotNull
     private Mono<FsResourceInfo> insertResource(FileMetadata metadata, String fileName, String path) {
         FsResourceInfo fsResourceInfo = new FsResourceInfo();
@@ -223,12 +220,13 @@ public class MongoResourceStorage implements IResourceStorage {
     private Mono<FileMetadata> saveFileMetadata(String fileHash) throws DuplicateKeyException {
         // main
         FileMetadata fileMetadata = new FileMetadata();
+        fileMetadata.setId(fileHash);
         fileMetadata.setFileHash(fileHash);
         fileMetadata.setUploadProgress(UploadProgress.UPLOADING);
 
         // reactive mongo thread
         // 尝试保存文件元数据信息
-        return mongoTemplate.save(fileMetadata);
+        return mongoTemplate.insert(fileMetadata);
     }
 
 
