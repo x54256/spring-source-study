@@ -36,7 +36,7 @@ public interface BigFileUploader {
     Flux<Pair<Integer, UploadProgress>> uploadProgress(String fileHash);
 
     /**
-     * 全部上传完成（文件名，总块数"用来做校验"），有什么办法保证数据无法被更改
+     * 全部上传完成，该接口具有幂等性
      *
      * @param fileHash            文件 hash
      * @param fileName            文件名

@@ -79,14 +79,14 @@ public class MongoResourceStorage implements IResourceStorage {
     /**
      * 布隆过滤器，过滤重复请求 todo 配合 hash 环
      */
-    private BloomFilter<CharSequence> bloomFilter = BloomFilter.create(
+    private final BloomFilter<CharSequence> bloomFilter = BloomFilter.create(
             // Funnel 预估元素个数 误判率
             Funnels.stringFunnel(Charset.defaultCharset()), 1024, 0.01);
 
     /**
      * 构建一个 LRU 缓存实例 todo 配合 hash 环
      */
-    private Cache<String, FileMetadata> cache = CacheBuilder.newBuilder()
+    private final Cache<String, FileMetadata> cache = CacheBuilder.newBuilder()
             .maximumSize(100) // 设置缓存的最大容量
             .concurrencyLevel(10) // 设置并发级别为 10
             .recordStats() // 开启缓存统计
@@ -94,13 +94,13 @@ public class MongoResourceStorage implements IResourceStorage {
 
     private final BigFileUploader INSTANCE = new BigFileUploaderImpl();
 
-    private DataBufferFactory dataBufferFactory;
+    private final DataBufferFactory dataBufferFactory;
 
-    private ReactiveMongoTemplate mongoTemplate;
+    private final ReactiveMongoTemplate mongoTemplate;
 
-    private ReactiveGridFsTemplate gridFsTemplate;
+    private final ReactiveGridFsTemplate gridFsTemplate;
 
-    private Scheduler scheduler;
+    private final Scheduler scheduler;
 
     public MongoResourceStorage(DataBufferFactory dataBufferFactory, ReactiveMongoTemplate mongoTemplate,
                                 ReactiveGridFsTemplate gridFsTemplate,
@@ -127,6 +127,9 @@ public class MongoResourceStorage implements IResourceStorage {
     /**
      * 上传文件到文件服务
      * todo 要是上传了一半线程挂了，或者服务器挂了怎么办，状态已经不会改变了但他又在那占着坑
+     * 策略：
+     * 1. 定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
+     * 2. redis 过期键提醒，可以检测是否引入 redis，如果引入默认用这个。
      *
      * @param localFilePath 本地文件路径
      * @param fileName      文件名
@@ -173,6 +176,9 @@ public class MongoResourceStorage implements IResourceStorage {
         });
     }
 
+    /**
+     * 这个方法也会出现唯一索引失效的情况，不过概率比较低，就不改了
+     */
     @NotNull
     private Mono<FsResourceInfo> insertResource(FileMetadata metadata, String fileName, String path) {
         FsResourceInfo fsResourceInfo = new FsResourceInfo();
@@ -321,7 +327,6 @@ public class MongoResourceStorage implements IResourceStorage {
         });
     }
 
-    // TODO: 2021/4/28 测试大文件 26M 以上
     @NotNull
     private Mono<String> doDownload(FileMetadata metadata, String tempPath) {
         return Mono.create(sink -> {
@@ -456,7 +461,7 @@ public class MongoResourceStorage implements IResourceStorage {
              */
             return Mono.create(sink -> MongoResourceStorage.this.getFileMetadata(fileHash)
                     .switchIfEmpty(this.createOrGet(fileHash))
-                    .flatMap(metadata -> this.saveChunkTempInfo(fileHash, chunk))
+                    .flatMap(metadata -> this.saveChunkTempInfoV2(fileHash, chunk))
                     .doOnError(DuplicateKeyException.class, ex -> sink.success(false))
                     .subscribe(temp -> {
                         log.info("temp：「{}」", temp);
@@ -483,10 +488,26 @@ public class MongoResourceStorage implements IResourceStorage {
                     .onErrorResume(DuplicateKeyException.class, ex -> MongoResourceStorage.this.getFileMetadata(fileHash));
         }
 
+        // 方案二：为他计算出一个唯一的 id(hash 算法) + 把 save 换成 insert
+        // 2021/4/29 小想法，把 id 设置成一样的呢？ 会不会把 id 的索引删了 -> 测试结果，不会
+        private Mono<FsFileTemp> saveChunkTempInfoV2(String fileHash, int chunk) throws DuplicateKeyException {
+            String key = fileHash + "_" + chunk;
+
+            // 尝试添加一条记录
+            FsFileTemp fsFileTemp = new FsFileTemp();
+            fsFileTemp.setId(SecureUtil.sha256(key));
+            fsFileTemp.setFileHash(fileHash);
+            fsFileTemp.setChunk(chunk);
+            fsFileTemp.setUploadProgress(UploadProgress.UPLOADING);
+            return mongoTemplate.insert(fsFileTemp);
+        }
+
+        // 方案一：布隆过滤器 + 小延时
         // 如果两个线程同时调用这个方法保存相同的数据，那么会同时插入两条数据（具体原因暂不清楚）同时打破唯一索引约束，即删掉唯一索引。
         // 如果集合已经包含了违反索引的唯一约束的数据，MongoDB不能在指定的索引字段上创建一个唯一索引。 —— 官方文档
-        // FIXME: 2021/4/29 所以在这里随机等待一段时间，降低出现这种情况的概率（目前概率还是很高）。当然不是万全之策，有好的想法可以 fix me
+        // 2021/4/29 所以在这里随机等待一段时间，降低出现这种情况的概率（目前概率还是很高）。当然不是万全之策，有好的想法可以 fix me
         @Beta
+        @Deprecated
         private Mono<FsFileTemp> saveChunkTempInfo(String fileHash, int chunk) throws DuplicateKeyException {
 
             /*
@@ -538,8 +559,7 @@ public class MongoResourceStorage implements IResourceStorage {
         }
 
         /**
-         * 全部上传完成（文件名，总块数"用来做校验"），有什么办法保证数据无法被更改
-         * todo 集群或者多线程咋办 -> 将这个接口改成幂等性的
+         * 全部上传完成，该接口具有幂等性
          *
          * @param fileHash            文件 hash
          * @param fileName            文件名
@@ -581,8 +601,6 @@ public class MongoResourceStorage implements IResourceStorage {
                                         })
                                         // 在 fs.resource 添加引用
                                         .flatMap(metadata -> MongoResourceStorage.this.insertResource(metadata, fileName, path))
-//                                        .map(r -> true)
-//                                        .doOnSuccess(b -> scheduler.schedule(() -> this.cleanTemp(fileHash)));
                                         // 删除缓存表数据 todo 原子性，改为单独开一个线程删除吧，不管他成不成功了
                                         // todo 不过支持事务了 since 2.2. Use {@code @Transactional} or {@link TransactionalOperator}.
                                         // todo 感觉还是改成事务吧
@@ -599,7 +617,7 @@ public class MongoResourceStorage implements IResourceStorage {
          */
         @Override
         public Mono<Boolean> uploadError(String fileHash) {
-            return cleanTemp(fileHash);
+            return this.cleanTemp(fileHash);
         }
 
         @NotNull
@@ -613,12 +631,4 @@ public class MongoResourceStorage implements IResourceStorage {
         }
     }
 
-
-    /*
-    上传到一半挂掉了怎么办
-
-    策略：
-    1. 定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
-    2. redis 过期键提醒，可以检测是否引入 redis，如果引入默认用这个。
-     */
 }
