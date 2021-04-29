@@ -1,4 +1,5 @@
 package cn.x5456.rs.pre;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
@@ -39,8 +40,14 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.io.RandomAccessFile;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -159,7 +166,7 @@ public class MongoResourceStorage implements IResourceStorage {
     }
 
     @NotNull
-    private Mono<FileMetadata> getFileMetadata(String fileHash) {
+    public Mono<FileMetadata> getFileMetadata(String fileHash) {
         return mongoTemplate.findOne(Query.query(Criteria.where(FileMetadata.FILE_HASH).is(fileHash)), FileMetadata.class);
     }
 
@@ -242,17 +249,27 @@ public class MongoResourceStorage implements IResourceStorage {
         return false;
     }
 
-    // 这不还是回调地狱吗，看看有没有啥办法解决，then 那个是干啥的
-    // then 好像确实可以串起来，但是我们这个需要入参啊
-    // 可以用 flatMap 串起来
     @NotNull
     private Mono<String> download(String fileHash) {
-        return this.getReadyMetadata(fileHash)
-                .flatMap(m -> {
-                    // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
-                    String tempPath = LOCAL_TEMP_PATH + m.getFileHash() + SUFFIX;
-                    return FileUtil.exist(tempPath) ? Mono.just(tempPath) : this.doDownload(m, tempPath);
-                });
+        return Mono.create(sink -> {
+            this.getReadyMetadata(fileHash)
+                    .subscribe(m -> {
+                        // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
+                        String tempPath = LOCAL_TEMP_PATH + m.getFileHash() + SUFFIX;
+                        if (FileUtil.exist(tempPath)) {
+                            sink.success(tempPath);
+                        } else {
+                            log.info("tempPath：「{}」", tempPath);
+                            // 2021/4/28 why????? 为啥要新开一个线程
+                            // 假设当前代码运行的线程为 N2-2，我们进入 doDownload() 方法，里面有一个循环，也是使用 N2-2 线程发送两个请求
+                            // （应该是做了判断，判断当前线程是不是 EventLoopGroup 中的线程，如果不是才会进行线程的切换），可能 mongo 内部
+                            // 有一个机制就是请求线程与接收线程绑定，即第一个请求用 N2-2 接收，第二个请求用 N2-3 接收，因为我们 for 循环之后
+                            // 调用了 latch.await(); 将 N2-2 阻塞住了，所以当消息来了之后 N2-2 无法接收，所以程序一直无法停止。
+                            // 所以，我们不能让 nio 线程阻塞，那就需要在调用时重新创建一个线程了。
+                            scheduler.schedule(() -> this.doDownload(m, tempPath).subscribe(sink::success));
+                        }
+                    });
+        });
     }
 
     @NotNull
@@ -274,18 +291,46 @@ public class MongoResourceStorage implements IResourceStorage {
         });
     }
 
+    // TODO: 2021/4/28 测试大文件 26M 以上
     @NotNull
     private Mono<String> doDownload(FileMetadata metadata, String tempPath) {
         return Mono.create(sink -> {
-            // TODO: 2021/4/27 多片的
-            FileMetadata.FsFilesInfo fsFilesInfo = metadata.getFsFilesInfoList().get(0);
-            gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(fsFilesInfo.getFsFilesId())))
-                    .flatMap(gridFsTemplate::getResource)
-                    .map(ReactiveGridFsResource::getDownloadStream)
-                    .flatMap(dataBufferFlux -> DataBufferUtils.write(dataBufferFlux.log(),
-                            Paths.get(tempPath), StandardOpenOption.WRITE, StandardOpenOption.CREATE))
-                    .doOnSuccess(x -> sink.success(tempPath))
-                    .subscribe();
+            // 获取每一片的信息，排序
+            List<FileMetadata.FsFilesInfo> fsFilesInfoList = metadata.getFsFilesInfoList();
+            fsFilesInfoList.sort(Comparator.comparingInt(FileMetadata.FsFilesInfo::getChunk));
+
+            long index = 0;
+            CountDownLatch latch = new CountDownLatch(fsFilesInfoList.size());
+            try {
+                for (FileMetadata.FsFilesInfo fsFilesInfo : fsFilesInfoList) {
+                    RandomAccessFile randomAccessFile = new RandomAccessFile(tempPath, "rw");
+                    randomAccessFile.seek(index);
+                    index += fsFilesInfo.getChunkSize();
+
+                    // 开始下载
+                    gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(fsFilesInfo.getFsFilesId())))
+                            .log()
+                            .flatMap(gridFsTemplate::getResource)
+                            .map(ReactiveGridFsResource::getDownloadStream)
+                            .flux()
+                            .flatMap(dataBufferFlux -> DataBufferUtils.write(dataBufferFlux, randomAccessFile.getChannel()))
+                            .doOnError(sink::error)
+                            .doOnComplete(() -> {
+                                try {
+                                    randomAccessFile.close();
+                                } catch (IOException e) {
+                                    sink.error(e);
+                                }
+                                latch.countDown();
+                            }).subscribe();
+                }
+
+                // 注释掉，在调用方加个 sleep 就可以看到正常接收了 onNext()
+                latch.await();
+                sink.success(tempPath);
+            } catch (Exception e) {
+                sink.error(e);
+            }
         });
     }
 
@@ -427,7 +472,7 @@ public class MongoResourceStorage implements IResourceStorage {
 
         /**
          * 全部上传完成（文件名，总块数"用来做校验"），有什么办法保证数据无法被更改
-         * todo 集群或者多线程咋办
+         * todo 集群或者多线程咋办 -> 将这个接口改成幂等性的
          *
          * @param fileHash            文件 hash
          * @param fileName            文件名
@@ -503,6 +548,10 @@ public class MongoResourceStorage implements IResourceStorage {
 
 
     /*
-    定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
+    上传到一半挂掉了怎么办
+
+    策略：
+    1. 定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
+    2. redis 过期键提醒，可以检测是否引入 redis，如果引入默认用这个。
      */
 }
