@@ -15,9 +15,11 @@ import cn.x5456.rs.pre.def.UploadProgress;
 import cn.x5456.rs.pre.document.FileMetadata;
 import cn.x5456.rs.pre.document.FsFileTemp;
 import cn.x5456.rs.pre.document.FsResourceInfo;
+import com.google.common.annotations.Beta;
 import com.google.common.collect.Lists;
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import com.mongodb.client.result.DeleteResult;
-import com.mongodb.reactivestreams.client.gridfs.GridFSBucket;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.ObjectProvider;
@@ -40,6 +42,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -56,18 +59,26 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@SuppressWarnings("UnstableApiUsage")
 public class MongoResourceStorage implements IResourceStorage {
 
     /**
      * 256 KB
      * {@see org.springframework.data.mongodb.gridfs.ReactiveGridFsResource.DEFAULT_CHUNK_SIZE}
      */
-    public static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
+    static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
 
     // TODO: 2021/4/26 后缀改为推测
-    private static final String SUFFIX = ".tmp";
+    static final String SUFFIX = ".tmp";
 
-    private static final String LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir");
+    static final String LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir");
+
+    /**
+     * 布隆过滤器，过滤重复请求
+     */
+    private BloomFilter<CharSequence> bloomFilter = BloomFilter.create(
+            // Funnel 预估元素个数 误判率
+            Funnels.stringFunnel(Charset.defaultCharset()), 1024, 0.01);
 
     private final BigFileUploader INSTANCE = new BigFileUploaderImpl();
 
@@ -77,17 +88,14 @@ public class MongoResourceStorage implements IResourceStorage {
 
     private ReactiveGridFsTemplate gridFsTemplate;
 
-    private GridFSBucket gridFSBucket;
-
     private Scheduler scheduler;
 
     public MongoResourceStorage(DataBufferFactory dataBufferFactory, ReactiveMongoTemplate mongoTemplate,
-                                ReactiveGridFsTemplate gridFsTemplate, GridFSBucket gridFSBucket,
+                                ReactiveGridFsTemplate gridFsTemplate,
                                 ObjectProvider<Scheduler> schedulerObjectProvider) {
         this.dataBufferFactory = dataBufferFactory;
         this.mongoTemplate = mongoTemplate;
         this.gridFsTemplate = gridFsTemplate;
-        this.gridFSBucket = gridFSBucket;
         this.scheduler = schedulerObjectProvider.getIfUnique(Schedulers::elastic);
     }
 
@@ -165,7 +173,7 @@ public class MongoResourceStorage implements IResourceStorage {
     }
 
     @NotNull
-    public Mono<FileMetadata> getFileMetadata(String fileHash) {
+    private Mono<FileMetadata> getFileMetadata(String fileHash) {
         return mongoTemplate.findOne(Query.query(Criteria.where(FileMetadata.FILE_HASH).is(fileHash)), FileMetadata.class);
     }
 
@@ -409,7 +417,8 @@ public class MongoResourceStorage implements IResourceStorage {
          * @param fileHash       文件 hash
          * @param chunk          第几片
          * @param dataBufferFlux 当前片的 dataBufferFlux
-         * @return 是否上传成功
+         * @return 是否上传成功，上传成功返回 true，当发现已经有其他线程上传过了返回 false
+         * @throws RuntimeException 上传文件时失败
          */
         @Override
         public Mono<Boolean> uploadFileChunk(String fileHash, int chunk, Flux<DataBuffer> dataBufferFlux) {
@@ -426,18 +435,22 @@ public class MongoResourceStorage implements IResourceStorage {
                     .switchIfEmpty(this.createOrGet(fileHash))
                     .flatMap(metadata -> this.saveChunkTempInfo(fileHash, chunk))
                     .doOnError(DuplicateKeyException.class, ex -> sink.success(false))
-                    .subscribe(temp -> gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
-                            .doOnError(ex -> {
-                                // 上传失败，删除缓存表信息
-                                mongoTemplate.remove(temp);
-                                sink.error(ex);
-                            })
-                            .flatMap(objectId -> {
-                                temp.setFsFilesId(objectId.toHexString());
-                                temp.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
-                                temp.setChunkSize(MongoResourceStorage.this.getChunkSize(dataBufferFlux));
-                                return mongoTemplate.save(temp);
-                            }).subscribe(t -> sink.success(true))));
+                    .subscribe(temp -> {
+                        log.info("temp：「{}」", temp);
+
+                        gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
+                                .doOnError(ex -> {
+                                    // 上传失败，删除缓存表信息
+                                    mongoTemplate.remove(temp);
+                                    sink.error(ex);
+                                })
+                                .flatMap(objectId -> {
+                                    temp.setFsFilesId(objectId.toHexString());
+                                    temp.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
+                                    temp.setChunkSize(MongoResourceStorage.this.getChunkSize(dataBufferFlux));
+                                    return mongoTemplate.save(temp);
+                                }).subscribe(t -> sink.success(true));
+                    }));
         }
 
         private Mono<FileMetadata> createOrGet(String fileHash) {
@@ -447,13 +460,45 @@ public class MongoResourceStorage implements IResourceStorage {
                     .onErrorResume(DuplicateKeyException.class, ex -> MongoResourceStorage.this.getFileMetadata(fileHash));
         }
 
+        // 如果两个线程同时调用这个方法保存相同的数据，那么会同时插入两条数据（具体原因暂不清楚）同时打破唯一索引约束，即删掉唯一索引。
+        // 如果集合已经包含了违反索引的唯一约束的数据，MongoDB不能在指定的索引字段上创建一个唯一索引。 —— 官方文档
+        // FIXME: 2021/4/29 所以在这里随机等待一段时间，降低出现这种情况的概率（目前概率还是很高）。当然不是万全之策，有好的想法可以 fix me
+        @Beta
         private Mono<FsFileTemp> saveChunkTempInfo(String fileHash, int chunk) throws DuplicateKeyException {
-            // 尝试添加一条记录
-            FsFileTemp fsFileTemp = new FsFileTemp();
-            fsFileTemp.setFileHash(fileHash);
-            fsFileTemp.setChunk(chunk);
-            fsFileTemp.setUploadProgress(UploadProgress.UPLOADING);
-            return mongoTemplate.save(fsFileTemp);
+
+            /*
+            Beta（不稳定）
+
+            1. 布隆过滤器过滤每个实例多个相同的上传请求
+            2. 随机延迟解决集群时多个相同的上传请求
+            3. todo 配合 hash 环算法，将相同 hash 的转发到相同的服务器，降低不同服务器相同上传请求造成的问题
+             */
+
+            // 通过布隆过滤器来降低单实例时出现问题的几率
+            String key = fileHash + "_" + chunk;
+            if (bloomFilter.mightContain(key)) {
+                log.info("布隆过滤器过滤的 key 重复：「{}」", key);
+                // TODO: 2021/4/29 怎样不用抛出异常的这种方式进行流的转变
+                return Mono.error(new DuplicateKeyException("测试键重复"));
+            }
+
+            // 否则将当前 key 添加进去
+            bloomFilter.put(key);
+            return Mono.create(sink -> {
+                int randomInt = RandomUtil.randomInt(0, 400);
+                Disposable disposable = scheduler.schedule(() -> {
+                    // 尝试添加一条记录
+                    FsFileTemp fsFileTemp = new FsFileTemp();
+                    fsFileTemp.setFileHash(fileHash);
+                    fsFileTemp.setChunk(chunk);
+                    fsFileTemp.setUploadProgress(UploadProgress.UPLOADING);
+                    mongoTemplate.save(fsFileTemp)
+                            .doOnError(sink::error)
+                            .subscribe(sink::success);
+
+                }, randomInt, TimeUnit.MILLISECONDS);
+                sink.onDispose(disposable);
+            });
         }
 
         /**
