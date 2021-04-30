@@ -7,6 +7,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
+
 /**
  * 只用于分片上传
  *
@@ -39,4 +41,9 @@ public class FsFileTemp {
 
     // 上传进度
     private UploadProgress uploadProgress;
+
+    /**
+     * 创建时间
+     */
+    private LocalDateTime creatTime;
 }

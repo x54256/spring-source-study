@@ -49,6 +49,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+// 配合 @ConditionalOnClass(Mongo.class)
 @SuppressWarnings("UnstableApiUsage")
 public class MongoResourceStorage implements IResourceStorage {
 
@@ -196,7 +198,7 @@ public class MongoResourceStorage implements IResourceStorage {
     private Mono<FileMetadata> doUploadFile(String fileHash, Flux<DataBuffer> dataBufferFlux) {
         return Mono.create(sink -> {
             // 尝试保存文件元数据信息
-            this.saveFileMetadata(fileHash)
+            this.insertFileMetadata(fileHash, false)
                     // 如果保存失败，则证明数据库中已经有了 hash 值为 fileHash 的数据，那么取出并返回
                     .doOnError(DuplicateKeyException.class, ex -> this.getFileMetadata(fileHash).subscribe(sink::success))
                     // 如果保存成功，则上传文件，完善文件元数据信息
@@ -217,12 +219,14 @@ public class MongoResourceStorage implements IResourceStorage {
     }
 
     @NotNull
-    private Mono<FileMetadata> saveFileMetadata(String fileHash) throws DuplicateKeyException {
+    private Mono<FileMetadata> insertFileMetadata(String fileHash, boolean multipartUpload) throws DuplicateKeyException {
         // main
         FileMetadata fileMetadata = new FileMetadata();
         fileMetadata.setId(fileHash);
         fileMetadata.setFileHash(fileHash);
         fileMetadata.setUploadProgress(UploadProgress.UPLOADING);
+        fileMetadata.setCreatTime(LocalDateTime.now());
+        fileMetadata.setMultipartUpload(multipartUpload);
 
         // reactive mongo thread
         // 尝试保存文件元数据信息
@@ -481,7 +485,7 @@ public class MongoResourceStorage implements IResourceStorage {
 
         private Mono<FileMetadata> createOrGet(String fileHash) {
             // 尝试保存文件元数据信息
-            return MongoResourceStorage.this.saveFileMetadata(fileHash)
+            return MongoResourceStorage.this.insertFileMetadata(fileHash, true)
                     // 如果保存失败，则证明数据库中已经有了 hash 值为 fileHash 的数据，那么取出并返回
                     .onErrorResume(DuplicateKeyException.class, ex -> MongoResourceStorage.this.getFileMetadata(fileHash));
         }
@@ -497,6 +501,7 @@ public class MongoResourceStorage implements IResourceStorage {
             fsFileTemp.setFileHash(fileHash);
             fsFileTemp.setChunk(chunk);
             fsFileTemp.setUploadProgress(UploadProgress.UPLOADING);
+            fsFileTemp.setCreatTime(LocalDateTime.now());
             return mongoTemplate.insert(fsFileTemp);
         }
 

@@ -8,6 +8,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -52,12 +53,22 @@ public class FileMetadata {
     // 上传进度
     private UploadProgress uploadProgress;
 
+    /**
+     * 创建时间
+     */
+    private LocalDateTime creatTime;
+
+    /**
+     * 是否是分片上传
+     */
+    private Boolean multipartUpload;
+
     @Data
     @AllArgsConstructor
     public static class FsFilesInfo {
 
         // 第几片
-        @NonNull    // 不知道好不好使
+        @NonNull    // Todo 不知道好不好使
         private Integer chunk;
 
         // 对应的 fs.files 表的 id
