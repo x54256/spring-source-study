@@ -1,6 +1,5 @@
 package cn.x5456.rs.pre;
 
-import cn.hutool.core.util.IdUtil;
 import cn.x5456.rs.pre.def.BigFileUploader;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
@@ -41,14 +40,14 @@ public class BaseMongoTest {
 
     BigFileUploader bigFileUploader;
 
-    String databaseName = IdUtil.simpleUUID();
+    String databaseName = "test";
+//    String databaseName = IdUtil.simpleUUID();
 
     // TODO: 2021/4/29 这个也是每次执行都会调用一次
     @PostConstruct
     public void preClass() {
         MongoClient mongoClient = MongoClients.create();
         SimpleReactiveMongoDatabaseFactory factory = new SimpleReactiveMongoDatabaseFactory(mongoClient, databaseName);
-
         ReactiveMongoTemplate reactiveMongoTemplate = new ReactiveMongoTemplate(factory);
         ReactiveGridFsTemplate reactiveGridFsTemplate = new ReactiveGridFsTemplate(factory, converter);
 

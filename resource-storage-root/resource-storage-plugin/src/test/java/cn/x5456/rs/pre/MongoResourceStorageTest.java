@@ -54,7 +54,7 @@ public class MongoResourceStorageTest extends BaseMongoTest {
         this.checkFileIsUpload();
 
         // 随机生成一个本地保存的路径
-        String localFilePath = FileUtil.getAbsolutePath(IdUtil.simpleUUID() + ".tmp");
+        String localFilePath = FileUtil.getAbsolutePath(IdUtil.simpleUUID() + ".txt");
         log.info("localFilePath：「{}」", localFilePath);
 
         Boolean block = mongoResourceStorage.downloadFile(localFilePath, path).block();
@@ -68,10 +68,7 @@ public class MongoResourceStorageTest extends BaseMongoTest {
             this.uploadFile();
         }
 
-        // 获取文件的 hash 值，删除在缓存文件夹的该文件
-        String hash = SecureUtil.sha256(new File(FileUtil.getAbsolutePath(absoluteFileName)));
-        String tempPath = MongoResourceStorage.LOCAL_TEMP_PATH + hash + MongoResourceStorage.SUFFIX;
-        FileUtil.del(tempPath);
+        mongoResourceStorage.cleanLocalTemp();
     }
 
     @Test

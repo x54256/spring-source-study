@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -74,14 +75,29 @@ public class MongoResourceStorage implements IResourceStorage {
      */
     static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
 
-    // TODO: 2021/4/26 后缀改为推测
-    static final String SUFFIX = ".tmp";
+    private static final String TMP_SUFFIX = ".tmp";
 
-    static final String LOCAL_TEMP_PATH;
+    /**
+     * 正式的后缀
+     */
+    private static final String OFFICIAL_SUFFIX = ".official";
+
+    private static final String LOCAL_TEMP_PATH;
 
     static {
         LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir") + File.separator + "cn.x5456.rs" + File.separator;
         FileUtil.mkdir(LOCAL_TEMP_PATH);
+
+        // 每次重启清理未"转正"的文件
+        File[] ls = FileUtil.ls(LOCAL_TEMP_PATH);
+        for (File file : ls) {
+            if (file.isFile()) {
+                String suffix = "." + FileUtil.getSuffix(file);
+                if (suffix.equals(TMP_SUFFIX)) {
+                    FileUtil.del(file);
+                }
+            }
+        }
     }
 
     /**
@@ -207,7 +223,7 @@ public class MongoResourceStorage implements IResourceStorage {
                     // 如果保存失败，则证明数据库中已经有了 hash 值为 fileHash 的数据，那么取出并返回
                     .doOnError(DuplicateKeyException.class, ex -> this.getFileMetadata(fileHash).subscribe(sink::success))
                     // 如果保存成功，则上传文件，完善文件元数据信息
-                    .flatMap(m -> gridFsTemplate.store(dataBufferFlux, fileHash + SUFFIX)
+                    .flatMap(m -> gridFsTemplate.store(dataBufferFlux, fileHash)
                             .doOnError(ex -> {
                                 // 如果上传时遇到错误，则删除当前上传文件的元数据，留给下一次上传
                                 mongoTemplate.remove(m);
@@ -287,35 +303,39 @@ public class MongoResourceStorage implements IResourceStorage {
             // 先从缓存中获取，节省一次查询
             FileMetadata metadata = cache.getIfPresent(fileHash);
             if (Objects.nonNull(metadata)) {
-                // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
-                String tempPath = LOCAL_TEMP_PATH + metadata.getFileHash() + SUFFIX;
-                if (FileUtil.exist(tempPath)) {
-                    sink.success(tempPath);
+                // 拼接本地缓存路径，格式：缓存目录/hashcode.official
+                String officialPath = this.getFileOfficialPath(metadata.getFileHash());
+                if (FileUtil.exist(officialPath)) {
+                    sink.success(officialPath);
                     return;
                 }
             }
 
             this.getReadyMetadata(fileHash)
                     .subscribe(m -> {
-                        // 拼接本地缓存路径，格式：缓存目录/hashcode.tmp
-                        String tempPath = LOCAL_TEMP_PATH + m.getFileHash() + SUFFIX;
-                        if (FileUtil.exist(tempPath)) {
-                            sink.success(tempPath);
+                        // 拼接本地缓存路径，格式：缓存目录/hashcode.official
+                        String officialPath = this.getFileOfficialPath(m.getFileHash());
+                        if (FileUtil.exist(officialPath)) {
+                            sink.success(officialPath);
                         } else {
-                            log.info("tempPath：「{}」", tempPath);
+                            log.info("officialPath：「{}」", officialPath);
                             // 2021/4/28 why????? 为啥要新开一个线程（这块是个死锁）
                             // 假设当前代码运行的线程为 N2-2，我们进入 doDownload() 方法，里面有一个循环，也是使用 N2-2 线程发送两个请求
                             // （应该是做了判断，判断当前线程是不是 EventLoopGroup 中的线程，如果不是才会进行线程的切换），可能 mongo 内部
                             // 有一个机制就是请求线程与接收线程绑定，即第一个请求用 N2-2 接收，第二个请求用 N2-3 接收，因为我们 for 循环之后
                             // 调用了 latch.await(); 将 N2-2 阻塞住了，所以当消息来了之后 N2-2 无法接收，所以程序一直无法停止。
                             // 所以，我们不能让 nio 线程阻塞，那就需要在调用时重新创建一个线程了。
-                            scheduler.schedule(() -> this.doDownload(m, tempPath).subscribe(localTempPath -> {
+                            scheduler.schedule(() -> this.doDownload(m).subscribe(localTempPath -> {
                                 cache.put(localTempPath, m);
                                 sink.success(localTempPath);
                             }));
                         }
                     });
         });
+    }
+
+    private String getFileOfficialPath(String fileHash) {
+        return LOCAL_TEMP_PATH + fileHash + OFFICIAL_SUFFIX;
     }
 
     // TODO: 2021/4/30 这个方法可以改成 repeatWhenEmpty 多重试几次要是还不行那就抛异常，让他等会
@@ -339,14 +359,49 @@ public class MongoResourceStorage implements IResourceStorage {
     }
 
     @NotNull
-    private Mono<String> doDownload(FileMetadata metadata, String tempPath) {
+    private Mono<String> doDownload(FileMetadata metadata) {
         return Mono.create(sink -> {
+
+            /*
+            0. 如果 tmp 文件存在
+            1. 检测 hashcode.tmp 是否被删除
+            2. 如果被删除则检查 hashcode.official 是否被创建出来了
+            3. 如果没有，则继续下载
+
+            虽然我觉得这样写不好，但也想不出别的办法，暂时先这样吧
+             */
+            String fileTempPath = this.getFileTempPath(metadata.getFileHash());
+            if (FileUtil.exist(fileTempPath)) {
+                int randomInt = RandomUtil.randomInt(100, 4000);
+
+                while (true) {
+                    if (!FileUtil.exist(fileTempPath)) {
+                        String officialPath = this.getFileOfficialPath(metadata.getFileHash());
+                        if (FileUtil.exist(officialPath)) {
+                            sink.success(officialPath);
+                            return;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(randomInt);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+
             // 获取每一片的信息，排序
             List<FileMetadata.FsFilesInfo> fsFilesInfoList = metadata.getFsFilesInfoList();
             fsFilesInfoList.sort(Comparator.comparingInt(FileMetadata.FsFilesInfo::getChunk));
 
+            String tempPath = this.getFileTempPath(metadata.getFileHash());
             long index = 0;
             CountDownLatch latch = new CountDownLatch(fsFilesInfoList.size());
+            AtomicBoolean isSuccess = new AtomicBoolean(true);
             try {
                 for (FileMetadata.FsFilesInfo fsFilesInfo : fsFilesInfoList) {
                     RandomAccessFile randomAccessFile = new RandomAccessFile(tempPath, "rw");
@@ -360,8 +415,12 @@ public class MongoResourceStorage implements IResourceStorage {
                             .map(ReactiveGridFsResource::getDownloadStream)
                             .flux()
                             .flatMap(dataBufferFlux -> DataBufferUtils.write(dataBufferFlux, randomAccessFile.getChannel()))
-                            .doOnError(sink::error)
-                            .doOnComplete(() -> {
+                            .onErrorResume(ex -> {
+                                isSuccess.set(false);
+                                sink.error(ex);
+                                return Mono.empty();
+                            }) // TODO: 2021/4/30 没测试，不知道好不好使
+                            .doOnTerminate(() -> {
                                 try {
                                     randomAccessFile.close();
                                 } catch (IOException e) {
@@ -374,11 +433,24 @@ public class MongoResourceStorage implements IResourceStorage {
 
                 // 注释掉，在调用方加个 sleep 就可以看到正常接收了 onNext()
                 latch.await();
-                sink.success(tempPath);
+
+                if (isSuccess.get()) {
+                    // 文件更名（"转正"）
+                    File officialFile = FileUtil.rename(
+                            new File(tempPath), metadata.getFileHash() + OFFICIAL_SUFFIX, true);
+                    sink.success(officialFile.getPath());
+                } else {
+                    // 下载失败，删除缓存文件
+                    FileUtil.del(tempPath);
+                }
             } catch (Exception e) {
                 sink.error(e);
             }
         });
+    }
+
+    private String getFileTempPath(String fileHash) {
+        return LOCAL_TEMP_PATH + fileHash + TMP_SUFFIX;
     }
 
     /**
@@ -485,7 +557,7 @@ public class MongoResourceStorage implements IResourceStorage {
             return MongoResourceStorage.this.getFileMetadata(fileHash)
                     .switchIfEmpty(this.createOrGet(fileHash))
                     .flatMap(metadata -> this.insertChunkTempInfoV2(fileHash, chunk))
-                    .flatMap(temp -> gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
+                    .flatMap(temp -> gridFsTemplate.store(dataBufferFlux, fileHash + "_" + chunk)
                             .doOnError(ex -> {
                                 // 上传失败，删除缓存表信息
                                 mongoTemplate.remove(temp);
