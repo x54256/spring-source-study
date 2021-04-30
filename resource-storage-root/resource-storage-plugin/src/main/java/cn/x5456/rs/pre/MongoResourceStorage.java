@@ -42,6 +42,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.Charset;
@@ -76,7 +77,12 @@ public class MongoResourceStorage implements IResourceStorage {
     // TODO: 2021/4/26 后缀改为推测
     static final String SUFFIX = ".tmp";
 
-    static final String LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir");
+    static final String LOCAL_TEMP_PATH;
+
+    static {
+        LOCAL_TEMP_PATH = System.getProperty("java.io.tmpdir") + File.separator + "cn.x5456.rs" + File.separator;
+        FileUtil.mkdir(LOCAL_TEMP_PATH);
+    }
 
     /**
      * 布隆过滤器，过滤重复请求 todo 配合 hash 环
@@ -297,7 +303,7 @@ public class MongoResourceStorage implements IResourceStorage {
                             sink.success(tempPath);
                         } else {
                             log.info("tempPath：「{}」", tempPath);
-                            // 2021/4/28 why????? 为啥要新开一个线程
+                            // 2021/4/28 why????? 为啥要新开一个线程（这块是个死锁）
                             // 假设当前代码运行的线程为 N2-2，我们进入 doDownload() 方法，里面有一个循环，也是使用 N2-2 线程发送两个请求
                             // （应该是做了判断，判断当前线程是不是 EventLoopGroup 中的线程，如果不是才会进行线程的切换），可能 mongo 内部
                             // 有一个机制就是请求线程与接收线程绑定，即第一个请求用 N2-2 接收，第二个请求用 N2-3 接收，因为我们 for 循环之后
@@ -312,6 +318,7 @@ public class MongoResourceStorage implements IResourceStorage {
         });
     }
 
+    // TODO: 2021/4/30 这个方法可以改成 repeatWhenEmpty 多重试几次要是还不行那就抛异常，让他等会
     @NotNull
     private Mono<FileMetadata> getReadyMetadata(String fileHash) {
         int randomInt = RandomUtil.randomInt(100, 4000);
@@ -359,8 +366,9 @@ public class MongoResourceStorage implements IResourceStorage {
                                     randomAccessFile.close();
                                 } catch (IOException e) {
                                     sink.error(e);
+                                } finally {
+                                    latch.countDown();
                                 }
-                                latch.countDown();
                             }).subscribe();
                 }
 
@@ -427,6 +435,16 @@ public class MongoResourceStorage implements IResourceStorage {
     public BigFileUploader getBigFileUploader() {
         return INSTANCE;
     }
+
+    /**
+     * 清除本地所有缓存
+     */
+    public void cleanLocalTemp() {
+        FileUtil.del(LOCAL_TEMP_PATH);
+        FileUtil.mkdir(LOCAL_TEMP_PATH);
+    }
+
+    // TODO: 2021/4/30 定时删除访问量低的文件，通过 LRU 缓存
 
     class BigFileUploaderImpl implements BigFileUploader {
 
@@ -498,16 +516,16 @@ public class MongoResourceStorage implements IResourceStorage {
         // 2021/4/29 小想法，把 id 设置成一样的呢？ 会不会把 id 的索引删了 -> 测试结果，不会
         private Mono<FsFileTemp> insertChunkTempInfoV2(String fileHash, int chunk) throws DuplicateKeyException {
             String key = fileHash + "_" + chunk;
+
+            // TODO: 2021/4/30 下面这个先查询在添加的动作是线程不安全的，但也不想加锁了，等他们以后 api 支持吧
             // 也可以使用布隆过滤器过滤下，毕竟下面这个动作还是比较重的，最好保证他能成功
             if (bloomFilter.mightContain(key)) {
                 log.info("布隆过滤器过滤的 key 重复：「{}」", key);
                 // 2021/4/29 怎样不用抛出异常的这种方式进行流的转变 -> 返回一个空对象，最后 switchIfEmpty
                 return Mono.empty();
             }
-
             // 否则将当前 key 添加进去
             bloomFilter.put(key);
-
 
             // 尝试添加一条记录
             FsFileTemp fsFileTemp = new FsFileTemp();
