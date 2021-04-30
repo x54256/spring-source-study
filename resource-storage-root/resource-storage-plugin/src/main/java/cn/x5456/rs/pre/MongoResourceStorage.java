@@ -461,26 +461,28 @@ public class MongoResourceStorage implements IResourceStorage {
             5. 如果创建成功，则执行上传逻辑，保存到 fs.temp 表中，返回 true
             6. 如果创建失败，则证明已经有了一个线程抢先上传了，返回 false
              */
-            return Mono.create(sink -> MongoResourceStorage.this.getFileMetadata(fileHash)
-                    .switchIfEmpty(this.createOrGet(fileHash))
-                    .flatMap(metadata -> this.saveChunkTempInfoV2(fileHash, chunk))
-                    .doOnError(DuplicateKeyException.class, ex -> sink.success(false))
-                    .subscribe(temp -> {
-                        log.info("temp：「{}」", temp);
 
-                        gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
-                                .doOnError(ex -> {
-                                    // 上传失败，删除缓存表信息
-                                    mongoTemplate.remove(temp);
-                                    sink.error(ex);
-                                })
-                                .flatMap(objectId -> {
-                                    temp.setFsFilesId(objectId.toHexString());
-                                    temp.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
-                                    temp.setChunkSize(MongoResourceStorage.this.getChunkSize(dataBufferFlux));
-                                    return mongoTemplate.save(temp);
-                                }).subscribe(t -> sink.success(true));
-                    }));
+            return MongoResourceStorage.this.getFileMetadata(fileHash)
+                    .switchIfEmpty(this.createOrGet(fileHash))
+                    .flatMap(metadata -> this.insertChunkTempInfoV2(fileHash, chunk))
+                    .flatMap(temp -> gridFsTemplate.store(dataBufferFlux, fileHash + "-" + chunk + SUFFIX)
+                            .doOnError(ex -> {
+                                // 上传失败，删除缓存表信息
+                                mongoTemplate.remove(temp);
+                            })
+                            .flatMap(objectId -> {
+                                temp.setFsFilesId(objectId.toHexString());
+                                temp.setUploadProgress(UploadProgress.UPLOAD_COMPLETED);
+                                temp.setChunkSize(MongoResourceStorage.this.getChunkSize(dataBufferFlux));
+                                return mongoTemplate.save(temp);
+                            }))
+                    .map(fsFileTemp -> true)
+                    /*
+                    当遇到 DuplicateKeyException 异常时说明已经有一个线程在上传了，所以停止上传，返回 false
+                    当流为空的时候，说明被布隆过滤器过滤掉了，所以也返回 false
+                     */
+                    .onErrorReturn(DuplicateKeyException.class, false)
+                    .defaultIfEmpty(false);
         }
 
         private Mono<FileMetadata> createOrGet(String fileHash) {
@@ -492,8 +494,18 @@ public class MongoResourceStorage implements IResourceStorage {
 
         // 方案二：为他计算出一个唯一的 id(hash 算法) + 把 save 换成 insert
         // 2021/4/29 小想法，把 id 设置成一样的呢？ 会不会把 id 的索引删了 -> 测试结果，不会
-        private Mono<FsFileTemp> saveChunkTempInfoV2(String fileHash, int chunk) throws DuplicateKeyException {
+        private Mono<FsFileTemp> insertChunkTempInfoV2(String fileHash, int chunk) throws DuplicateKeyException {
             String key = fileHash + "_" + chunk;
+            // 也可以使用布隆过滤器过滤下，毕竟下面这个动作还是比较重的，最好保证他能成功
+            if (bloomFilter.mightContain(key)) {
+                log.info("布隆过滤器过滤的 key 重复：「{}」", key);
+                // 2021/4/29 怎样不用抛出异常的这种方式进行流的转变 -> 返回一个空对象，最后 switchIfEmpty
+                return Mono.empty();
+            }
+
+            // 否则将当前 key 添加进去
+            bloomFilter.put(key);
+
 
             // 尝试添加一条记录
             FsFileTemp fsFileTemp = new FsFileTemp();
