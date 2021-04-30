@@ -105,8 +105,7 @@ public class MongoResourceStorage implements IResourceStorage {
     private final Scheduler scheduler;
 
     public MongoResourceStorage(DataBufferFactory dataBufferFactory, ReactiveMongoTemplate mongoTemplate,
-                                ReactiveGridFsTemplate gridFsTemplate,
-                                ObjectProvider<Scheduler> schedulerObjectProvider) {
+                                ReactiveGridFsTemplate gridFsTemplate, ObjectProvider<Scheduler> schedulerObjectProvider) {
         this.dataBufferFactory = dataBufferFactory;
         this.mongoTemplate = mongoTemplate;
         this.gridFsTemplate = gridFsTemplate;
@@ -304,7 +303,10 @@ public class MongoResourceStorage implements IResourceStorage {
                             // 有一个机制就是请求线程与接收线程绑定，即第一个请求用 N2-2 接收，第二个请求用 N2-3 接收，因为我们 for 循环之后
                             // 调用了 latch.await(); 将 N2-2 阻塞住了，所以当消息来了之后 N2-2 无法接收，所以程序一直无法停止。
                             // 所以，我们不能让 nio 线程阻塞，那就需要在调用时重新创建一个线程了。
-                            scheduler.schedule(() -> this.doDownload(m, tempPath).subscribe(sink::success));
+                            scheduler.schedule(() -> this.doDownload(m, tempPath).subscribe(localTempPath -> {
+                                cache.put(localTempPath, m);
+                                sink.success(localTempPath);
+                            }));
                         }
                     });
         });
