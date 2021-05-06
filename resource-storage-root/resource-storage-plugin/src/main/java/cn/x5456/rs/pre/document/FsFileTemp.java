@@ -23,6 +23,7 @@ public class FsFileTemp {
     public static final String FILE_HASH = "fileHash";
     public static final String CHUNK = "chunk";
     public static final String UPLOAD_PROGRESS = "uploadProgress";
+    public static final String CREAT_TIME = "creatTime";
 
     @Id
     private String id;

@@ -21,6 +21,9 @@ import java.util.Map;
 public class FileMetadata {
 
     public static final String FILE_HASH = "id";
+    public static final String UPLOAD_PROGRESS = "uploadProgress";
+    public static final String CREAT_TIME = "creatTime";
+    public static final String MULTIPART_UPLOAD = "multipartUpload";
 
     @Id
     private String id;

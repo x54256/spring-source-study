@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Pair;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.crypto.SecureUtil;
+import cn.x5456.rs.pre.document.FileMetadata;
 import cn.x5456.rs.pre.document.FsResourceInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -17,6 +18,7 @@ import reactor.core.publisher.Flux;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author yujx
@@ -39,6 +41,11 @@ public class MongoResourceStorageTest extends BaseMongoTest {
 
         Query query = Query.query(Criteria.where(FsResourceInfo.PATH).is(fsResourceInfo.getId()));
         Assert.assertEquals(fsResourceInfo, mongoTemplate.findOne(query, FsResourceInfo.class).block());
+        try {
+            TimeUnit.MINUTES.sleep(3);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private void deleteIfExist() {
@@ -176,4 +183,14 @@ public class MongoResourceStorageTest extends BaseMongoTest {
         Assert.assertTrue(bigFileUploader.uploadError(hash).block());
     }
 
+
+    @Test
+    public void test() {
+        FileMetadata metadata = new FileMetadata();
+        metadata.setFileHash("123");
+        metadata.setMultipartUpload(false);
+        mongoTemplate.insert(metadata).block();
+
+
+    }
 }

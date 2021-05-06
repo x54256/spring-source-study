@@ -1,5 +1,6 @@
 package cn.x5456.rs.pre;
 
+import cn.hutool.core.util.IdUtil;
 import cn.x5456.rs.pre.def.BigFileUploader;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
@@ -9,6 +10,7 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.SimpleReactiveMongoDatabaseFactory;
@@ -40,8 +42,11 @@ public class BaseMongoTest {
 
     BigFileUploader bigFileUploader;
 
-    String databaseName = "test";
-//    String databaseName = IdUtil.simpleUUID();
+//    String databaseName = "test";
+    String databaseName = IdUtil.simpleUUID();
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     // TODO: 2021/4/29 这个也是每次执行都会调用一次
     @PostConstruct
@@ -49,6 +54,7 @@ public class BaseMongoTest {
         MongoClient mongoClient = MongoClients.create();
         SimpleReactiveMongoDatabaseFactory factory = new SimpleReactiveMongoDatabaseFactory(mongoClient, databaseName);
         ReactiveMongoTemplate reactiveMongoTemplate = new ReactiveMongoTemplate(factory);
+        reactiveMongoTemplate.setApplicationContext(applicationContext);
         ReactiveGridFsTemplate reactiveGridFsTemplate = new ReactiveGridFsTemplate(factory, converter);
 
         this.mongoTemplate = reactiveMongoTemplate;
