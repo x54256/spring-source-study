@@ -149,7 +149,8 @@ public class MongoResourceStorage implements IResourceStorage {
 
     /**
      * 上传文件到文件服务
-     * todo 要是上传了一半线程挂了，或者服务器挂了怎么办，状态已经不会改变了但他又在那占着坑
+     * <p>
+     * 要是上传了一半线程挂了，或者服务器挂了怎么办，状态已经不会改变了但他又在那占着坑
      * 策略：
      * 1. 定时任务监测 metadata 和 temp 表，当其超过 mongo 连接超时时间 * 2 的时候，则记录日志并删除
      * 2. redis 过期键提醒，可以检测是否引入 redis，如果引入默认用这个。
@@ -590,7 +591,7 @@ public class MongoResourceStorage implements IResourceStorage {
         private Mono<FsFileTemp> insertChunkTempInfoV2(String fileHash, int chunk) throws DuplicateKeyException {
             String key = fileHash + "_" + chunk;
 
-            // TODO: 2021/4/30 下面这个先查询在添加的动作是线程不安全的，但也不想加锁了，等他们以后 api 支持吧
+            // TODO: 2021/4/30 下面这个先查询在添加的动作是线程不安全的，但也不想加锁了，等他们以后 api 支持吧，也可以自己学习下 ConcurrentHashMap 封装一下
             // 也可以使用布隆过滤器过滤下，毕竟下面这个动作还是比较重的，最好保证他能成功
             if (bloomFilter.mightContain(key)) {
                 log.info("布隆过滤器过滤的 key 重复：「{}」", key);
@@ -630,7 +631,7 @@ public class MongoResourceStorage implements IResourceStorage {
             String key = fileHash + "_" + chunk;
             if (bloomFilter.mightContain(key)) {
                 log.info("布隆过滤器过滤的 key 重复：「{}」", key);
-                // TODO: 2021/4/29 怎样不用抛出异常的这种方式进行流的转变
+                // 2021/4/29 怎样不用抛出异常的这种方式进行流的转变
                 return Mono.error(new DuplicateKeyException("测试键重复"));
             }
 

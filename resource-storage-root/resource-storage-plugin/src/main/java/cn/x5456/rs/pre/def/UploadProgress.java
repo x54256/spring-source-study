@@ -2,8 +2,6 @@ package cn.x5456.rs.pre.def;
 
 import cn.x5456.rs.base.EnumInterface;
 
-// TODO: 2021/4/27 上传中断问题
-// TODO: 2021/4/27 看看能不能用状态机
 public enum UploadProgress implements EnumInterface {
 
     UPLOADING(0, "上传中"),

@@ -54,4 +54,13 @@ public interface BigFileUploader {
      */
     Mono<Boolean> uploadError(String fileHash);
 
+    /*
+    0. 构造的时候加一个属性，是否需要本地合并该文件
+    1. 检查是否可以秒传(hash)
+    2. 上传每一片(hash, part, chunk)
+    3. 全部上传完成(hash, fileName, totalNumberOfChunks)
+
+    1 可以直接到 3
+     */
+
 }

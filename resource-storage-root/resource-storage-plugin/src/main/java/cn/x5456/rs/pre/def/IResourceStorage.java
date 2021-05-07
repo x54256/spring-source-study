@@ -87,34 +87,5 @@ public interface IResourceStorage {
     BigFileUploader getBigFileUploader();
 
 
-//    // TODO: 2021/4/25 你说文件名和一共几片需不需要我们来管理，还有上传的状态，是否上传完成这种的
-//    // TODO: 2021/4/25 如果我们管理就需要有一个生命周期对象，到底返不返回呢（返回就会有线程安全问题），还是自己维护
-//
-//    /**
-//     * dataBufferFlux 方式上传文件到文件服务
-//     *
-//     * @param dataBufferFlux dataBufferFlux
-//     * @param path           服务上存储的标识
-//     * @param fileHash       文件 hash
-//     * @param chunk          第几片
-//     * @return 是否上传成功
-//     */
-//    Mono<Boolean> uploadFileChunk(Flux<DataBuffer> dataBufferFlux, String path,
-//                                  String fileHash, int chunk);
-
-
-    /*
-    0. 构造的时候加一个属性，是否需要本地合并该文件
-    1. 检查是否可以秒传(hash)
-    2. 上传每一片(hash, part, chunk)
-    3. 全部上传完成(hash, fileName, totalNumberOfChunks)
-
-    1 可以直接到 3
-     */
-
-    // LRU
-
-
-
     // TODO: 2021/4/25 小文件下载的时候用 0 拷贝
 }
