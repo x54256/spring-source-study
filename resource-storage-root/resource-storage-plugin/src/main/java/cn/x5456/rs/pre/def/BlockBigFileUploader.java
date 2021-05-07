@@ -2,11 +2,11 @@ package cn.x5456.rs.pre.def;
 
 import cn.hutool.core.lang.Pair;
 import cn.x5456.rs.pre.document.FsResourceInfo;
-import org.springframework.core.io.buffer.DataBuffer;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
-public interface BigFileUploader {
+import java.io.InputStream;
+import java.util.List;
+
+public interface BlockBigFileUploader {
 
     /**
      * 是否已经存在
@@ -14,7 +14,7 @@ public interface BigFileUploader {
      * @param fileHash 文件 hash
      * @return 文件是否已在服务中存在
      */
-    Mono<Boolean> isExist(String fileHash);
+    Boolean isExist(String fileHash);
 
     /**
      * 大文件秒传
@@ -24,19 +24,19 @@ public interface BigFileUploader {
      * @param path     服务上存储的标识
      * @return 是否上传成功
      */
-    Mono<FsResourceInfo> secondPass(String fileHash, String fileName, String path);
+    FsResourceInfo secondPass(String fileHash, String fileName, String path);
 
     /**
      * 上传每一片文件
      * 1. 检查 hash 是否存在，避免重复上传
      * 2. 上传时检查上传进度，如果已经在上传那就不上传了
      *
-     * @param fileHash       文件 hash
-     * @param chunk          第几片
-     * @param dataBufferFlux 当前片的 dataBufferFlux
+     * @param fileHash    文件 hash
+     * @param chunk       第几片
+     * @param inputStream 当前片的输入流
      * @return 是否上传成功
      */
-    Mono<Boolean> uploadFileChunk(String fileHash, int chunk, Flux<DataBuffer> dataBufferFlux);
+    Boolean uploadFileChunk(String fileHash, int chunk, InputStream inputStream);
 
     /**
      * 获取上传进度 {1: 上传完成， 0: 上传中，2：失败}  1  2  4  8  与运算
@@ -44,7 +44,7 @@ public interface BigFileUploader {
      * @param fileHash 文件 hash
      * @return 上传进度
      */
-    Flux<Pair<Integer, UploadProgress>> uploadProgress(String fileHash);
+    List<Pair<Integer, UploadProgress>> uploadProgress(String fileHash);
 
     /**
      * 全部上传完成，该接口具有幂等性
@@ -55,7 +55,7 @@ public interface BigFileUploader {
      * @param path                服务上存储的标识
      * @return 操作是否成功
      */
-    Mono<Boolean> uploadCompleted(String fileHash, String fileName, int totalNumberOfChunks, String path);
+    Boolean uploadCompleted(String fileHash, String fileName, int totalNumberOfChunks, String path);
 
     /**
      * 上传失败，清理缓存表
@@ -63,15 +63,5 @@ public interface BigFileUploader {
      * @param fileHash 文件 hash
      * @return 操作是否成功
      */
-    Mono<Boolean> uploadError(String fileHash);
-
-    /*
-    0. 构造的时候加一个属性，是否需要本地合并该文件
-    1. 检查是否可以秒传(hash)
-    2. 上传每一片(hash, part, chunk)
-    3. 全部上传完成(hash, fileName, totalNumberOfChunks)
-
-    ~~1 可以直接到 3~~
-     */
-
+    Boolean uploadError(String fileHash);
 }

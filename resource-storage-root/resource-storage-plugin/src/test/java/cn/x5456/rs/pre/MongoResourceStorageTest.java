@@ -175,7 +175,7 @@ public class MongoResourceStorageTest extends BaseMongoTest {
     public void secondPass() {
         this.uploadCompleted();
 
-        Assert.assertTrue(bigFileUploader.secondPass(hash).block());
+        Assert.assertTrue(bigFileUploader.isExist(hash).block());
     }
 
     @Test

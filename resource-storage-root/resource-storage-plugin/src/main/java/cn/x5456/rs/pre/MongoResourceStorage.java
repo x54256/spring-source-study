@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
 public class MongoResourceStorage implements IResourceStorage {
 
     /**
-     * 256 KB
+     * 256 KB todo 提出去
      * {@see org.springframework.data.mongodb.gridfs.ReactiveGridFsResource.DEFAULT_CHUNK_SIZE}
      */
     static final Integer DEFAULT_CHUNK_SIZE = 256 * 1024;
@@ -528,10 +528,24 @@ public class MongoResourceStorage implements IResourceStorage {
          * @return 文件是否已在服务中存在
          */
         @Override
-        public Mono<Boolean> secondPass(String fileHash) {
+        public Mono<Boolean> isExist(String fileHash) {
             return MongoResourceStorage.this.getFileMetadata(fileHash).map(m -> true)
                     // 查不到数据时返回的是一个空的 Mono，并不会调用 map()，所以需要使用 defaultIfEmpty 返回值
                     .defaultIfEmpty(false);
+        }
+
+        /**
+         * 大文件秒传
+         *
+         * @param fileHash 文件 hash
+         * @param fileName 文件名
+         * @param path     服务上存储的标识
+         * @return 是否上传成功
+         */
+        @Override
+        public Mono<FsResourceInfo> secondPass(String fileHash, String fileName, String path) {
+            return MongoResourceStorage.this.getFileMetadata(fileHash)
+                    .flatMap(m -> MongoResourceStorage.this.insertResource(m, fileName, path));
         }
 
         /**
