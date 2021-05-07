@@ -2,6 +2,12 @@
 
 1. nio 线程不能被阻塞（死锁问题）
 2. mongo 的唯一索引是采用乐观锁机制做的所以不可靠，如果需要可靠的唯一索引机制最好计算出一个唯一 hash 值来作为主键
+
+![](https://tva1.sinaimg.cn/large/008i3skNgy1gq8tqbytahj316n0u0wn1.jpg)
+
+![](https://tva1.sinaimg.cn/large/008i3skNgy1gq8tpzjk3kj31gs0rsqan.jpg)
+
+
 3. 当前面操作返回的是一个空的 Publisher map() 是拿不到数据的，所以不能通过 .map(x -> if(x == null)) 来做一些事情，要使用 switchIfEmpty() 来进一步操作
 4. 如果代码不涉及 scheduler 最好不要使用 sink，flatMap 和 map 可以胜任绝大部分任务。
 

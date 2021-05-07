@@ -55,12 +55,15 @@ public interface IResourceStorage {
     Mono<Boolean> downloadFile(String localFilePath, String path);
 
     /**
-     * 从文件服务中获取文件
+     * 从文件服务中获取文件  Pair<String, byte[]>
      *
      * @param path 服务上存储的标识
      * @return Pair key-文件名，value-dataBufferFlux
      */
     Mono<Pair<String, Flux<DataBuffer>>> downloadFileDataBuffer(String path);
+
+
+//     InputStream   -> Channel
 
     /**
      * 删除文件服务上的文件（引用计数）
