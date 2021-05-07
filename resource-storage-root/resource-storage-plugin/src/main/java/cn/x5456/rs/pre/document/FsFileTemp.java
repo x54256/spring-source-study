@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 @CompoundIndexes(@CompoundIndex(name = "hash_chunk_unique_index", def = "{'fileHash' : 1, 'chunk': 1}", unique = true))
 public class FsFileTemp {
 
+    public static final String ID = "id";
     public static final String FILE_HASH = "fileHash";
     public static final String CHUNK = "chunk";
     public static final String UPLOAD_PROGRESS = "uploadProgress";

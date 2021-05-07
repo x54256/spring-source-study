@@ -1,6 +1,5 @@
 package cn.x5456.rs.pre;
 
-import cn.hutool.core.util.IdUtil;
 import cn.x5456.rs.pre.def.BigFileUploader;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
@@ -42,8 +41,8 @@ public class BaseMongoTest {
 
     BigFileUploader bigFileUploader;
 
-//    String databaseName = "test";
-    String databaseName = IdUtil.simpleUUID();
+    String databaseName = "test";
+//    String databaseName = IdUtil.simpleUUID();
 
     @Autowired
     private ApplicationContext applicationContext;

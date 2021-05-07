@@ -109,6 +109,16 @@ class A {
 需要引入 spring-data-redis，当保存之后调用回调，创建一个具有过期时间的 key，过期后调用回调进行删除
 问题：是否所有实例都会收到这个监听呢。
 
+v1 版本模仿 spring-redis-session 的 A、B、C 类型键，但是写着写着发现 redis 好像给我们实现了一个
+
+v2 通过 @EnableRedisRepositories 用二级索引实现
+
+![](https://tva1.sinaimg.cn/large/008i3skNgy1gq9nru2s7dj318y0aadjb.jpg)
+
+问题：Redis Pub / Sub消息不是持久的。 如果在应用程序关闭期间某个键过期，则不会处理到期事件，这可能会导致secondary indexes引用已过期的对象。
+
+![](https://tva1.sinaimg.cn/large/008i3skNgy1gq9oa059srj30qg0a276c.jpg)
+
 方案三：MQ 版（最好，但一般项目不会用 mq），结合 AbstractMongoEventListener
 
 和 redis 版本大同小异，可以交给陆俊翔写。

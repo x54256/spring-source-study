@@ -6,12 +6,16 @@ import cn.x5456.rs.pre.document.FsFileTemp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -22,19 +26,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * @date 2021/04/30 10:09
  */
 @Slf4j
-//@Component
-public class SchedulerCleanStrategy extends AbstractMongoCleanStrategy {
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "x5456.rs.clean", name = "strategy", havingValue = "scheduler", matchIfMissing = true)
+public class SchedulerCleanStrategy {
 
     private Scheduler scheduler;
 
+    private ReactiveMongoTemplate mongoTemplate;
+
     @Autowired
-    public void setScheduler(ObjectProvider<Scheduler> schedulerObjectProvider) {
+    public void setScheduler(ReactiveMongoTemplate mongoTemplate, ObjectProvider<Scheduler> schedulerObjectProvider) {
+        this.mongoTemplate = mongoTemplate;
         this.scheduler = schedulerObjectProvider.getIfUnique(Schedulers::elastic);
         // TODO: 2021/4/30 改为外部调用
         this.start();
     }
 
-    @Override
     public void start() {
         AtomicLong n = new AtomicLong(1);
         scheduler.schedulePeriodically(() -> {
@@ -42,12 +49,12 @@ public class SchedulerCleanStrategy extends AbstractMongoCleanStrategy {
             log.info("正在执行清理操作，第「{}」次。", n.getAndIncrement());
 
             LocalDateTime now = LocalDateTime.now();
-            LocalDateTime dateTime = now.plusNanos(super.getCleanTimeout(TimeUnit.NANOSECONDS) * -1);
+            LocalDateTime dateTime = now.plusNanos(MongoTimeoutHolder.getCleanTimeout(TimeUnit.NANOSECONDS) * -1);
 
             this.cleanFsFileTemp(dateTime);
             this.cleanFileMetadata(dateTime);
 
-        }, 1000, super.getConnectTimeoutMS() * 5L, TimeUnit.MILLISECONDS);
+        }, 1000, MongoTimeoutHolder.getConnectTimeoutMS() * 5L, TimeUnit.MILLISECONDS);
     }
 
     private void cleanFsFileTemp(LocalDateTime dateTime) {
@@ -61,16 +68,16 @@ public class SchedulerCleanStrategy extends AbstractMongoCleanStrategy {
                     // 获取 hash
                     String hash = groupedFlux.key();
 
-                    // 清理元数据表，如果 temp 表中还有已经上传完成的就不删除 metadata
-                    Criteria c1 = Criteria.where(FsFileTemp.UPLOAD_PROGRESS).is(UploadProgress.UPLOAD_COMPLETED)
-                            .and(FsFileTemp.FILE_HASH).is(hash);
-                    // TODO: 2021/4/30 我觉得想要在空流里做点事真费劲，暂时用 block() 了。
-                    FsFileTemp block = mongoTemplate.findOne(Query.query(c1), FsFileTemp.class).block();
-                    if (block == null) {
+                    // 获取查出来的数量
+                    long countOfUploading = groupedFlux.toStream().count();
+
+                    // 清理元数据表，查询 FsFileTemp 中碎片信息（无论上传是否完成）是否与我们查出来的【不满足条件】的碎片数量一样，如果一样则删除元数据表记录
+                    Criteria c1 = Criteria.where(FsFileTemp.FILE_HASH).is(hash);
+                    Long count = mongoTemplate.count(Query.query(c1), FsFileTemp.class).block();
+                    if (Objects.equals(count, countOfUploading)) {
                         Criteria c = Criteria.where(FileMetadata.FILE_HASH).is(hash)
                                 .and(FileMetadata.UPLOAD_PROGRESS).is(UploadProgress.UPLOADING)
-                                .and(FileMetadata.MULTIPART_UPLOAD).is(true)
-                                .and(FileMetadata.CREAT_TIME).lte(dateTime);
+                                .and(FileMetadata.MULTIPART_UPLOAD).is(true);
                         mongoTemplate.findOne(Query.query(c), FileMetadata.class)
                                 .subscribe(metadata -> {
                                     log.info("metadata：「{}」", metadata);
