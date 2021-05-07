@@ -132,15 +132,18 @@ v2 通过 @EnableRedisRepositories 用二级索引实现
 1. mongo id 加索引和唯一索引有啥区别
 2. 如果在应用程序关闭期间某个键过期，则不会处理到期事件，这可能会导致secondary indexes引用已过期的对象。
     - 二级索引学习
-3. 布隆过滤器改造
+3. ~~布隆过滤器改造~~ -> 做不到
+4. 了解下 guava 布隆过滤器，超出的元素是否会删除
 
 剩余功能点：
 
 - zip 解压，内部文件上传 mongo
 - mongo 那些注解好不好使 {@link com.mongodb.lang.NonNull}
-- 布隆过滤器线程安全问题 -> 自己学习下 ConcurrentHashMap 封装一下
+- ~~布隆过滤器线程安全问题 -> 自己学习下 ConcurrentHashMap 封装一下~~
 - 你觉得清理策略自动启用好还是指定好，如果自动启用，有什么办法调整那两种策略的优先级吗，因为我只想启用一个
-- 作为 jar 包引入（看看能不能用 gateway），提供 rest api（包括 swagger） 和钩子（hook）
+- 作为 jar 包引入，提供 rest api（包括 swagger） 和钩子（hook）
+    1. 文件服务独立部署，通过网关转发
+    2. 通过 jar 包引入文件服务，最好提供 webflux api
 - 分布式情况下，结合网关使用
 - 分布式独立部署情况下使用 hash 环算法负载
 - 使用了 hash 环就可以在本地合并了。-> 0. 构造的时候加一个属性，是否需要本地合并该文件

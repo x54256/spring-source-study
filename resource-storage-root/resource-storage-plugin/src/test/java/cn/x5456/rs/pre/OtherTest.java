@@ -4,10 +4,12 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.watch.SimpleWatcher;
 import cn.hutool.core.io.watch.WatchMonitor;
 import cn.hutool.core.lang.Console;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author yujx
@@ -42,4 +44,8 @@ public class OtherTest {
         watchMonitor.join();
     }
 
+    @Test
+    public void testConcurrentHashMap() {
+        ConcurrentHashMap<String, Object> hashMap = new ConcurrentHashMap<>();
+    }
 }

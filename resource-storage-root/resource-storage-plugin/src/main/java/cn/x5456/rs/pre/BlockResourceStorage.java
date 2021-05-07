@@ -25,10 +25,9 @@ import java.util.List;
 @Component
 public class BlockResourceStorage {
 
-    @Autowired
-    private DataBufferFactory dataBufferFactory;
+    private final DataBufferFactory dataBufferFactory;
 
-    private IResourceStorage resourceStorage;
+    private final IResourceStorage resourceStorage;
 
     private static final String LOCAL_TEMP_PATH;
 
@@ -39,7 +38,9 @@ public class BlockResourceStorage {
         FileUtil.mkdir(LOCAL_TEMP_PATH);
     }
 
-    public BlockResourceStorage(IResourceStorage resourceStorage) {
+    @Autowired
+    public BlockResourceStorage(DataBufferFactory dataBufferFactory, IResourceStorage resourceStorage) {
+        this.dataBufferFactory = dataBufferFactory;
         this.resourceStorage = resourceStorage;
     }
 
